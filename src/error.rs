@@ -94,7 +94,7 @@ impl Error
         eprintln!("{self}");
         std::process::exit(code);
     }
-    
+
     pub fn report(&self)
     {
         eprintln!("{self}");

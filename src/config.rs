@@ -18,19 +18,22 @@ pub struct Config
 
     /// One of the following themes:
     ///
-    /// base16-ocean.dark
-    /// base16-eighties.dark
-    /// base16-mocha.dark
-    /// base16-ocean.light
-    /// InspiredGitHub
-    /// Solarized (dark)
-    /// Solarized (light)
+    /// `base16-ocean.dark`  
+    /// `base16-eighties.dark`  
+    /// `base16-mocha.dark`  
+    /// `base16-ocean.light`  
+    /// `InspiredGitHub`  
+    /// `Solarized (dark)`  
+    /// `Solarized (light)`  
     ///
     /// Or one found in the `custom_syntax_themes` dir.
     pub syntax_theme: String,
 
     /// Where `.tmTheme` color shemes are stored
     pub custom_syntax_themes: PathBuf,
+
+    /// The default favicon for webpages.
+    pub default_favicon: PathBuf,
 }
 
 impl Default for Config
@@ -38,23 +41,25 @@ impl Default for Config
     fn default() -> Self
     {
         Self {
-            source:               PathBuf::from(Self::DEF_SRC_DIR),
-            dest:                 PathBuf::from(Self::DEF_DEST_DIR),
-            syntaxes:             PathBuf::from(Self::DEF_SYNTAXES_DIR),
-            syntax_theme:         String::from(Self::DEF_SYNTAX_THEME),
-            custom_syntax_themes: PathBuf::from(Self::DEF_CUSTOM_SYNTAX_THEMES_DIR),
+            dest:                 PathBuf::from(Self::DEFAULT_DEST_DIR),
+            source:               PathBuf::from(Self::DEFAULT_SRC_DIR),
+            syntaxes:             PathBuf::from(Self::DEFAULT_SYNTAXES_DIR),
+            syntax_theme:         String::from(Self::DEFAULT_SYNTAX_THEME),
+            default_favicon:      PathBuf::from(Self::DEFAULT_FAVICON_FILE),
+            custom_syntax_themes: PathBuf::from(Self::DEFAULT_CUSTOM_SYNTAX_THEMES_DIR),
         }
     }
 }
 
 impl Config
 {
-    pub const DEF_CONFIG_FILE: &str = "raven.toml";
-    const DEF_CUSTOM_SYNTAX_THEMES_DIR: &str = "syntax-themes";
-    const DEF_DEST_DIR: &str = "dest";
-    const DEF_SRC_DIR: &str = "src";
-    const DEF_SYNTAXES_DIR: &str = "syntaxes";
-    const DEF_SYNTAX_THEME: &str = "base16-eighties.dark";
+    pub const DEFAULT_CONFIG_FILE: &str = "raven.toml";
+    const DEFAULT_CUSTOM_SYNTAX_THEMES_DIR: &str = "syntax-themes";
+    const DEFAULT_DEST_DIR: &str = "dest";
+    pub const DEFAULT_FAVICON_FILE: &str = "favicon.png";
+    const DEFAULT_SRC_DIR: &str = "src";
+    const DEFAULT_SYNTAXES_DIR: &str = "syntaxes";
+    const DEFAULT_SYNTAX_THEME: &str = "base16-eighties.dark";
 
     pub fn from_toml(path: &PathBuf) -> Result<Self>
     {
