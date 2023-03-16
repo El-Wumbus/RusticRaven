@@ -40,6 +40,29 @@ const TEMPLATE_NAME_STYLESHEET: &str = "[/rustic_stylesheet/]";
 )]
 enum Options
 {
+    /// Create a new directory and initalize it
+    New
+    {
+        /// The name of the new project
+        name: PathBuf,
+
+        /// The name of the source directory
+        #[structopt(short = "s", long = "source")]
+        source: Option<String>,
+
+        /// The name of the output directory (Where the generated HTML goes).
+        #[structopt(short = "d", long = "dest")]
+        dest: Option<String>,
+
+        /// The name of the custom syntax directory.
+        #[structopt(short = "y", long = "syntaxes")]
+        syntaxes: Option<String>,
+
+        /// The name of the custom syntax themes directory
+        #[structopt(short = "t", long = "syntax_themes")]
+        syntax_themes: Option<String>,
+    },
+
     /// Initialize a new project
     Init
     {
@@ -64,6 +87,7 @@ enum Options
         rebuild_all: bool,
     },
 
+    /// Clean the dest dir of generated files and directories
     Clean
     {
         /// The project directory
@@ -105,34 +129,85 @@ impl PageInfo
 fn main() -> error::Result<()>
 {
     let options = Options::from_args();
+
+    let initial_directory = Error::unwrap_gracefully(PathBuf::from(".").canonicalize().map_err(|e| {
+        Error::Io {
+            err:  e,
+            path: PathBuf::from("."),
+        }
+    }));
+
     match &options {
-        Options::Init { directory } => init(directory),
+        Options::Init { directory } => {
+            // Change directories into the specified directory.
+            std::env::set_current_dir(directory).unwrap();
+            init(Config::default())
+        }
         Options::Build {
             config_path,
             directory,
             rebuild_all,
         } => {
+            // Change directories into the specified directory.
+            std::env::set_current_dir(directory).unwrap();
             Error::unwrap_gracefully(build(
-                Error::unwrap_gracefully(Config::from_toml(&directory.join(config_path))),
-                directory.to_path_buf(),
+                Error::unwrap_gracefully(Config::from_toml(config_path)),
                 *rebuild_all,
             ))
         }
         Options::Clean { directory, config_path } => {
-            Error::unwrap_gracefully(clean(
-                Error::unwrap_gracefully(Config::from_toml(&directory.join(config_path))),
-                directory,
-            ))
+            // Change directories into the specified directory.
+            std::env::set_current_dir(directory).unwrap();
+            Error::unwrap_gracefully(clean(Error::unwrap_gracefully(Config::from_toml(config_path))))
+        }
+        Options::New {
+            name,
+            source,
+            dest,
+            syntaxes,
+            syntax_themes,
+        } => {
+            let mut config = Config::default();
+            // Create the name dir
+            if let Err(e) = fs::create_dir_all(name) {
+                Error::Io {
+                    err:  e,
+                    path: name.to_path_buf(),
+                }
+                .report_and_exit()
+            }
+
+            if let Some(source) = source {
+                let source = PathBuf::from(source);
+                config.source = source;
+            }
+            if let Some(dest) = dest {
+                let dest = PathBuf::from(dest);
+                config.dest = dest;
+            }
+            if let Some(syntaxes) = syntaxes {
+                let syntaxes = PathBuf::from(syntaxes);
+                config.dest = syntaxes;
+            }
+            if let Some(syntax_themes) = syntax_themes {
+                let syntax_themes = PathBuf::from(syntax_themes);
+                config.dest = syntax_themes;
+            }
+            // Change directories into the specified directory.
+            std::env::set_current_dir(name).unwrap();
+            init(config)
         }
     };
 
+    // Change directories back into the inital directory.
+    std::env::set_current_dir(initial_directory).unwrap();
 
     Ok(())
 }
 
-fn clean(config: Config, directory: &Path) -> Result<()>
+fn clean(config: Config) -> Result<()>
 {
-    let dest_dir = directory.join(&config.dest);
+    let dest_dir = &config.dest;
     if dest_dir.is_dir()
         && dest_dir
             .read_dir()
@@ -147,7 +222,7 @@ fn clean(config: Config, directory: &Path) -> Result<()>
     {
         return Ok(());
     }
-    let dest_dir_contents: Vec<DirEntry> = WalkDir::new(&dest_dir)
+    let dest_dir_contents: Vec<DirEntry> = WalkDir::new(dest_dir)
         .into_iter()
         .filter_map(|x| {
             if let Ok(x) = x {
@@ -188,10 +263,9 @@ fn clean(config: Config, directory: &Path) -> Result<()>
     Ok(())
 }
 
-fn init(directory: &Path)
+fn init(config: Config)
 {
-    let config = Config::default();
-    let configuration_file_path = directory.join(Config::DEFAULT_CONFIG_FILE);
+    let configuration_file_path = PathBuf::from(Config::DEFAULT_CONFIG_FILE);
 
     if configuration_file_path.exists() {
         return;
@@ -214,10 +288,10 @@ fn init(directory: &Path)
     }));
 
     // create dirs
-    let source = directory.join(&config.source);
-    let dest = directory.join(&config.dest);
-    let syntaxes = directory.join(&config.syntaxes);
-    let custom_syntax_themes = directory.join(&config.custom_syntax_themes);
+    let source = config.source;
+    let dest = config.dest;
+    let syntaxes = config.syntaxes;
+    let custom_syntax_themes = config.custom_syntax_themes;
     Error::unwrap_gracefully(fs::create_dir(&source).map_err(|e| Error::Io { err: e, path: source }));
     Error::unwrap_gracefully(fs::create_dir(&dest).map_err(|e| Error::Io { err: e, path: dest }));
     Error::unwrap_gracefully(fs::create_dir(&syntaxes).map_err(|e| {

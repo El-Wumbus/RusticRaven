@@ -10,7 +10,7 @@ pub struct Config
     /// Where Markdown source files are stored
     pub source: PathBuf,
 
-    /// Where Html source file are stored
+    /// Where generated HTML files are stored
     pub dest: PathBuf,
 
     /// Where sublime syntax highliting files are stored
@@ -56,7 +56,7 @@ impl Config
     pub const DEFAULT_CONFIG_FILE: &str = "raven.toml";
     const DEFAULT_CUSTOM_SYNTAX_THEMES_DIR: &str = "syntax-themes";
     const DEFAULT_DEST_DIR: &str = "dest";
-    pub const DEFAULT_FAVICON_FILE: &str = "favicon.png";
+    const DEFAULT_FAVICON_FILE: &str = "favicon.png";
     const DEFAULT_SRC_DIR: &str = "src";
     const DEFAULT_SYNTAXES_DIR: &str = "syntaxes";
     const DEFAULT_SYNTAX_THEME: &str = "base16-eighties.dark";

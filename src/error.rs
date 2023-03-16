@@ -75,6 +75,9 @@ pub enum Error
         crate::NAME
     )]
     MissingTheme(String),
+
+    #[error("[{}] HtmlPostprocessError: There was an error generated HTML: \"{0}\"", crate::NAME)]
+    HtmlPostprocess(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
