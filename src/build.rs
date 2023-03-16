@@ -1,3 +1,6 @@
+use chrono::{DateTime, Local};
+use zzz::ProgressBarIterExt as _;
+
 use crate::*;
 
 pub struct Website
@@ -113,17 +116,19 @@ impl Website
 }
 
 
-pub fn build(config: Config, directory: PathBuf) -> Result<()>
+pub fn build(config: Config, directory: PathBuf, rebuild_all: bool) -> Result<()>
 {
-    use walkdir::{DirEntry, WalkDir};
-
     let (syntax_set_builder, mut themes) = get_syntaxes(&config, &directory)?;
-    let theme = themes.remove(&config.syntax_theme).unwrap();
+    let theme = match themes.remove(&config.syntax_theme) {
+        None => Err(Error::MissingTheme(config.syntax_theme)),
+        Some(x) => Ok(x),
+    }?;
     let site = Rc::new(Website::new(syntax_set_builder.build(), theme));
 
     let source_dir = directory.join(&config.source);
     // Walk the source directory and filter the results to only include files
     // that have a markdown file extention
+    #[allow(clippy::unnecessary_unwrap)]
     let source_file_dir: Vec<DirEntry> = WalkDir::new(&source_dir)
         .into_iter()
         .filter_map(|x| {
@@ -160,16 +165,40 @@ pub fn build(config: Config, directory: PathBuf) -> Result<()>
 
     // If there's no source files we exit with an error
     if source_file_count == 0 {
-        Error::MissingSourceFiles(source_dir).report_and_exit();
+        return Err(Error::MissingSourceFiles(source_dir));
     }
 
-    for source_file in source_file_dir {
+    for source_file in source_file_dir.into_iter().progress() {
         let source_path = source_file.path().to_path_buf();
         let source_file_name = source_path.file_stem().unwrap();
         let mut source_path_stem: PathBuf = source_path.iter().skip_while(|x| *x != directory).skip(2).collect();
-        source_path_stem = config.dest.join(source_path_stem.parent().unwrap().to_path_buf());
+        source_path_stem = config.dest.join(source_path_stem.parent().unwrap());
         let dest_path: PathBuf =
             directory.join(source_path_stem.join(format!("{}.html", source_file_name.to_string_lossy())));
+
+        // If the destination exists, and the source is more recently modified than the
+        // destination, then we skip generating this file.
+        if !rebuild_all && dest_path.exists() {
+            let source_path_metadata = source_path.metadata().map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: source_path.clone(),
+                }
+            })?;
+            let dest_path_metadata = dest_path.metadata().map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: source_path.clone(),
+                }
+            })?;
+
+            let source_last_modified: DateTime<Local> = source_path_metadata.modified().unwrap().into();
+            let dest_last_modified: DateTime<Local> = dest_path_metadata.modified().unwrap().into();
+
+            if source_last_modified < dest_last_modified {
+                continue;
+            }
+        }
 
         // Parse the markdown into html
         let source = fs::read_to_string(&source_path).map_err(|e| {
@@ -180,6 +209,7 @@ pub fn build(config: Config, directory: PathBuf) -> Result<()>
         })?;
         let (html, page_info) = Error::unwrap_gracefully(site.clone().parse_markdown(source, source_path.clone()));
         let template = directory.join(page_info.template);
+        let stylesheet = directory.join(page_info.style);
 
         // If the template file doesn't exist, skip this file
         if !template.is_file() {
@@ -210,6 +240,17 @@ pub fn build(config: Config, directory: PathBuf) -> Result<()>
             site.read_to_base64_string(favicon_path)?
         );
 
+        // Read the stylesheet and wrap it in html
+        let stylesheet = format!(
+            "<style>{}</style>",
+            fs::read_to_string(&stylesheet).map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: stylesheet,
+                }
+            })?
+        );
+
         // Add the markdown html into the template html, then write it out.
         let html = Error::unwrap_gracefully(fs::read_to_string(&template).map_err(|e| {
             Error::Io {
@@ -220,7 +261,8 @@ pub fn build(config: Config, directory: PathBuf) -> Result<()>
         .replace(TEMPLATE_NAME_BODY, &html)
         .replace(TEMPLATE_NAME_TITLE, &page_info.title)
         .replace(TEMPLATE_NAME_DESC, &page_info.description)
-        .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded);
+        .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded)
+        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
 
         // Create the parent dir in the destination path
         let dest_path_parent = dest_path.parent().unwrap_or(&dest_path);

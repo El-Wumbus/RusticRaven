@@ -69,6 +69,12 @@ pub enum Error
         source_file:            PathBuf,
         expected_template_file: PathBuf,
     },
+
+    #[error(
+        "[{}] MissingThemeError: Requested theme \"{0}\" in configuration file, but it doesn't exist",
+        crate::NAME
+    )]
+    MissingTheme(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

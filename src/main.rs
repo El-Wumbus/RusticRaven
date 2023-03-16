@@ -21,6 +21,8 @@ pub use config::*;
 
 mod build;
 use build::*;
+use walkdir::{DirEntry, WalkDir};
+use zzz::ProgressBarIterExt as _;
 
 const NAME: &str = "RusticRaven";
 const DESC: &str = "A static html generator";
@@ -29,6 +31,7 @@ const TEMPLATE_NAME_BODY: &str = "[/rustic_body/]";
 const TEMPLATE_NAME_TITLE: &str = "[/rustic_title/]";
 const TEMPLATE_NAME_DESC: &str = "[/rustic_description/]";
 const TEMPLATE_NAME_FAVICON: &str = "[/rustic_favicon/]";
+const TEMPLATE_NAME_STYLESHEET: &str = "[/rustic_stylesheet/]";
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -47,6 +50,21 @@ enum Options
 
     /// Build static HTML from an existing project
     Build
+    {
+        /// The project directory
+        #[structopt(default_value = ".")]
+        directory: PathBuf,
+
+        /// Provide an alternate config file path
+        #[structopt(long = "config", default_value = Config::DEFAULT_CONFIG_FILE)]
+        config_path: PathBuf,
+
+        /// Rebuild all file regardless of if the sources have been modified
+        #[structopt(long = "rebuild_all", short = "a")]
+        rebuild_all: bool,
+    },
+
+    Clean
     {
         /// The project directory
         #[structopt(default_value = ".")]
@@ -89,10 +107,21 @@ fn main() -> error::Result<()>
     let options = Options::from_args();
     match &options {
         Options::Init { directory } => init(directory),
-        Options::Build { config_path, directory } => {
+        Options::Build {
+            config_path,
+            directory,
+            rebuild_all,
+        } => {
             Error::unwrap_gracefully(build(
                 Error::unwrap_gracefully(Config::from_toml(&directory.join(config_path))),
                 directory.to_path_buf(),
+                *rebuild_all,
+            ))
+        }
+        Options::Clean { directory, config_path } => {
+            Error::unwrap_gracefully(clean(
+                Error::unwrap_gracefully(Config::from_toml(&directory.join(config_path))),
+                directory,
             ))
         }
     };
@@ -101,7 +130,65 @@ fn main() -> error::Result<()>
     Ok(())
 }
 
-fn init(directory: &PathBuf)
+fn clean(config: Config, directory: &Path) -> Result<()>
+{
+    let dest_dir = directory.join(&config.dest);
+    if dest_dir.is_dir()
+        && dest_dir
+            .read_dir()
+            .map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: dest_dir.clone(),
+                }
+            })?
+            .next()
+            .is_none()
+    {
+        return Ok(());
+    }
+    let dest_dir_contents: Vec<DirEntry> = WalkDir::new(&dest_dir)
+        .into_iter()
+        .filter_map(|x| {
+            if let Ok(x) = x {
+                if x.path() != dest_dir {
+                    Some(x)
+                }
+                else {
+                    None
+                }
+            }
+            else {
+                None
+            }
+        })
+        .collect();
+
+    // We delete all the files inside the dest dir and create a progress bar to
+    // track the progress.
+    for path in dest_dir_contents.iter().progress() {
+        let path = path.path();
+        if path.is_file() {
+            fs::remove_file(path).map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: path.to_path_buf(),
+                }
+            })?;
+        }
+        else if path.is_dir() {
+            fs::remove_dir_all(path).map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: path.to_path_buf(),
+                }
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn init(directory: &Path)
 {
     let config = Config::default();
     let configuration_file_path = directory.join(Config::DEFAULT_CONFIG_FILE);
