@@ -30,7 +30,7 @@ impl Website
         Ok(engine::general_purpose::STANDARD_NO_PAD.encode(image))
     }
 
-    pub fn parse_markdown(&self, source: String, source_path: PathBuf) -> Result<(String, PageInfo)>
+    fn parse_markdown(&self, source: String, source_path: PathBuf) -> Result<(String, PageInfo)>
     {
         use pulldown_cmark::{html, Options, Parser, Tag};
 
@@ -127,7 +127,6 @@ pub fn build(config: Config, directory: PathBuf) -> Result<()>
     let source_file_dir: Vec<DirEntry> = WalkDir::new(&source_dir)
         .into_iter()
         .filter_map(|x| {
-            dbg!(&x);
             let x = x;
             if x.is_ok() && {
                 let extention: &str = &x
@@ -167,8 +166,10 @@ pub fn build(config: Config, directory: PathBuf) -> Result<()>
     for source_file in source_file_dir {
         let source_path = source_file.path().to_path_buf();
         let source_file_name = source_path.file_stem().unwrap();
+        let mut source_path_stem: PathBuf = source_path.iter().skip_while(|x| *x != directory).skip(2).collect();
+        source_path_stem = config.dest.join(source_path_stem.parent().unwrap().to_path_buf());
         let dest_path: PathBuf =
-            directory.join(config.dest.join(format!("{}.html", source_file_name.to_string_lossy())));
+            directory.join(source_path_stem.join(format!("{}.html", source_file_name.to_string_lossy())));
 
         // Parse the markdown into html
         let source = fs::read_to_string(&source_path).map_err(|e| {
