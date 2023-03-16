@@ -1,10 +1,8 @@
 use std::{
     borrow::Cow,
     ffi::OsString,
-    fs,
     io::Write,
     path::{Path, PathBuf},
-    rc::Rc,
 };
 
 use gh_emoji::Replacer;
@@ -12,17 +10,16 @@ use pulldown_cmark::{CodeBlockKind, Event};
 use serde::Deserialize;
 use structopt::StructOpt;
 use syntect::{highlighting, parsing::SyntaxSet};
+use tokio::fs;
+use walkdir::{DirEntry, WalkDir};
+use zzz::ProgressBarIterExt as _;
 
 mod error;
 pub use error::*;
-
 mod config;
 pub use config::*;
-
 mod build;
 use build::*;
-use walkdir::{DirEntry, WalkDir};
-use zzz::ProgressBarIterExt as _;
 
 const NAME: &str = "RusticRaven";
 const DESC: &str = "A static html generator";
@@ -126,10 +123,10 @@ impl PageInfo
     const CODE_BLOCK_IDENTIFIER: &str = "pageinfo";
 }
 
-fn main() -> error::Result<()>
+#[tokio::main]
+async fn main() -> error::Result<()>
 {
     let options = Options::from_args();
-
     let initial_directory = Error::unwrap_gracefully(PathBuf::from(".").canonicalize().map_err(|e| {
         Error::Io {
             err:  e,
@@ -141,7 +138,7 @@ fn main() -> error::Result<()>
         Options::Init { directory } => {
             // Change directories into the specified directory.
             std::env::set_current_dir(directory).unwrap();
-            init(Config::default())
+            init(Config::default()).await
         }
         Options::Build {
             config_path,
@@ -150,15 +147,19 @@ fn main() -> error::Result<()>
         } => {
             // Change directories into the specified directory.
             std::env::set_current_dir(directory).unwrap();
-            Error::unwrap_gracefully(build(
-                Error::unwrap_gracefully(Config::from_toml(config_path)),
-                *rebuild_all,
-            ))
+            let config = Error::unwrap_gracefully(Config::from_toml(config_path));
+            let (syntax_set_builder, mut themes) = Error::unwrap_gracefully(get_syntaxes(&config));
+            let theme = match themes.remove(&config.syntax_theme) {
+                None => Err(Error::MissingTheme(config.syntax_theme.clone())),
+                Some(x) => Ok(x),
+            }?;
+            let site = Website::new(config, syntax_set_builder.build(), theme);
+            Error::unwrap_gracefully(site.build(*rebuild_all).await)
         }
         Options::Clean { directory, config_path } => {
             // Change directories into the specified directory.
             std::env::set_current_dir(directory).unwrap();
-            Error::unwrap_gracefully(clean(Error::unwrap_gracefully(Config::from_toml(config_path))))
+            Error::unwrap_gracefully(clean(Error::unwrap_gracefully(Config::from_toml(config_path))).await)
         }
         Options::New {
             name,
@@ -169,7 +170,7 @@ fn main() -> error::Result<()>
         } => {
             let mut config = Config::default();
             // Create the name dir
-            if let Err(e) = fs::create_dir_all(name) {
+            if let Err(e) = fs::create_dir_all(name).await {
                 Error::Io {
                     err:  e,
                     path: name.to_path_buf(),
@@ -195,7 +196,7 @@ fn main() -> error::Result<()>
             }
             // Change directories into the specified directory.
             std::env::set_current_dir(name).unwrap();
-            init(config)
+            init(config).await
         }
     };
 
@@ -205,7 +206,7 @@ fn main() -> error::Result<()>
     Ok(())
 }
 
-fn clean(config: Config) -> Result<()>
+async fn clean(config: Config) -> Result<()>
 {
     let dest_dir = &config.dest;
     if dest_dir.is_dir()
@@ -244,7 +245,7 @@ fn clean(config: Config) -> Result<()>
     for path in dest_dir_contents.iter().progress() {
         let path = path.path();
         if path.is_file() {
-            fs::remove_file(path).map_err(|e| {
+            fs::remove_file(path).await.map_err(|e| {
                 Error::Io {
                     err:  e,
                     path: path.to_path_buf(),
@@ -252,7 +253,7 @@ fn clean(config: Config) -> Result<()>
             })?;
         }
         else if path.is_dir() {
-            fs::remove_dir_all(path).map_err(|e| {
+            fs::remove_dir_all(path).await.map_err(|e| {
                 Error::Io {
                     err:  e,
                     path: path.to_path_buf(),
@@ -263,7 +264,8 @@ fn clean(config: Config) -> Result<()>
     Ok(())
 }
 
-fn init(config: Config)
+/// Initialize a directiory with the defualt doodads
+async fn init(config: Config)
 {
     let configuration_file_path = PathBuf::from(Config::DEFAULT_CONFIG_FILE);
 
@@ -272,15 +274,16 @@ fn init(config: Config)
     }
 
     // Open a new conf file, we err if the file already exists
-    let mut f = Error::unwrap_gracefully(fs::File::create(&configuration_file_path).map_err(|e| {
+    let f = Error::unwrap_gracefully(fs::File::create(&configuration_file_path).await.map_err(|e| {
         Error::Io {
             err:  e,
             path: configuration_file_path.clone(),
         }
     }));
+
     // Serialize the defualt values, then write it to the new config file;
     let toml = toml::to_string_pretty(&config).unwrap();
-    Error::unwrap_gracefully(f.write_all(toml.as_bytes()).map_err(|e| {
+    Error::unwrap_gracefully(f.into_std().await.write_all(toml.as_bytes()).map_err(|e| {
         Error::Io {
             err:  e,
             path: configuration_file_path,
@@ -292,15 +295,23 @@ fn init(config: Config)
     let dest = config.dest;
     let syntaxes = config.syntaxes;
     let custom_syntax_themes = config.custom_syntax_themes;
-    Error::unwrap_gracefully(fs::create_dir(&source).map_err(|e| Error::Io { err: e, path: source }));
-    Error::unwrap_gracefully(fs::create_dir(&dest).map_err(|e| Error::Io { err: e, path: dest }));
-    Error::unwrap_gracefully(fs::create_dir(&syntaxes).map_err(|e| {
+    Error::unwrap_gracefully(
+        fs::create_dir(&source)
+            .await
+            .map_err(|e| Error::Io { err: e, path: source }),
+    );
+    Error::unwrap_gracefully(
+        fs::create_dir(&dest)
+            .await
+            .map_err(|e| Error::Io { err: e, path: dest }),
+    );
+    Error::unwrap_gracefully(fs::create_dir(&syntaxes).await.map_err(|e| {
         Error::Io {
             err:  e,
             path: syntaxes,
         }
     }));
-    Error::unwrap_gracefully(fs::create_dir(&custom_syntax_themes).map_err(|e| {
+    Error::unwrap_gracefully(fs::create_dir(&custom_syntax_themes).await.map_err(|e| {
         Error::Io {
             err:  e,
             path: custom_syntax_themes,

@@ -34,6 +34,9 @@ pub struct Config
 
     /// The default favicon for webpages.
     pub default_favicon: PathBuf,
+
+    /// If generated HTML should be processed (minimized, etc.)
+    pub process_html: bool,
 }
 
 impl Default for Config
@@ -44,6 +47,7 @@ impl Default for Config
             dest:                 PathBuf::from(Self::DEFAULT_DEST_DIR),
             source:               PathBuf::from(Self::DEFAULT_SRC_DIR),
             syntaxes:             PathBuf::from(Self::DEFAULT_SYNTAXES_DIR),
+            process_html:         Self::DEFAULT_PROCESS_HTML,
             syntax_theme:         String::from(Self::DEFAULT_SYNTAX_THEME),
             default_favicon:      PathBuf::from(Self::DEFAULT_FAVICON_FILE),
             custom_syntax_themes: PathBuf::from(Self::DEFAULT_CUSTOM_SYNTAX_THEMES_DIR),
@@ -56,7 +60,8 @@ impl Config
     pub const DEFAULT_CONFIG_FILE: &str = "raven.toml";
     const DEFAULT_CUSTOM_SYNTAX_THEMES_DIR: &str = "syntax-themes";
     const DEFAULT_DEST_DIR: &str = "dest";
-    const DEFAULT_FAVICON_FILE: &str = "favicon.png";
+    const DEFAULT_FAVICON_FILE: &str = "favicon.ico";
+    const DEFAULT_PROCESS_HTML: bool = true;
     const DEFAULT_SRC_DIR: &str = "src";
     const DEFAULT_SYNTAXES_DIR: &str = "syntaxes";
     const DEFAULT_SYNTAX_THEME: &str = "base16-eighties.dark";

@@ -45,14 +45,15 @@ custom_syntax_themes = "syntax-themes"
 default_favicon = "favicon.png"
 ```
 
-| Name                   | Description                                              |
-| ---------------------- | -------------------------------------------------------- |
-| `source`               | Where Markdown source files are stored                   |
-| `dest`                 | Where generated HTML files are stored                    |
-| `syntaxes`             | Where additional syntax highliting files are stored      |
-| `syntax_theme`         | The syntax highlighting theme to use                     |
-| `custom_syntax_themes` | Where custom syntax highlighting themes are stored       |
+| Name                   | Description                                               |
+| ---------------------- | --------------------------------------------------------- |
+| `source`               | Where Markdown source files are stored                    |
+| `dest`                 | Where generated HTML files are stored                     |
+| `syntaxes`             | Where additional syntax highliting files are stored       |
+| `syntax_theme`         | The syntax highlighting theme to use                      |
+| `custom_syntax_themes` | Where custom syntax highlighting themes are stored        |
 | `default_favicon`      | The defualt favxicon used for files that don't supply one |
+| `process_html`         | If generated HTML should be processed (minimized, etc.)   |
 
 The defualt syntax themes are as follows:
 * `base16-ocean.dark`

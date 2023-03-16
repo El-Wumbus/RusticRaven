@@ -7,6 +7,7 @@ use crate::*;
 
 pub struct Website
 {
+    config:         Config,
     emoji_replacer: Replacer,
     syntax_set:     SyntaxSet,
     syntax_theme:   highlighting::Theme,
@@ -14,19 +15,20 @@ pub struct Website
 
 impl Website
 {
-    pub fn new(syntax_set: SyntaxSet, syntax_theme: highlighting::Theme) -> Self
+    pub fn new(config: Config, syntax_set: SyntaxSet, syntax_theme: highlighting::Theme) -> Self
     {
         Self {
+            config,
             emoji_replacer: Replacer::new(),
             syntax_set,
             syntax_theme,
         }
     }
 
-    fn read_to_base64_string(&self, path: PathBuf) -> Result<String>
+    async fn read_to_base64_string(&self, path: PathBuf) -> Result<String>
     {
         use base64::{engine, prelude::*};
-        let image = fs::read(&path).map_err(|e| {
+        let image = fs::read(&path).await.map_err(|e| {
             Error::Io {
                 err:  e,
                 path: path.clone(),
@@ -115,12 +117,160 @@ impl Website
         })?;
         Ok((html_out, page_info))
     }
+
+    pub async fn build(&self, rebuild_all: bool) -> Result<()>
+    {
+        let config = &self.config;
+        let source_file_dir = walk_directory(&config.source);
+        let source_file_count = source_file_dir.len();
+
+        // If there's no source files we exit with an error
+        if source_file_count == 0 {
+            return Err(Error::MissingSourceFiles(config.source.clone()));
+        }
+
+        // The assets we've already loaded.
+        let mut open_assets: BTreeMap<String, (&str, String)> = BTreeMap::new();
+
+        for source_file in source_file_dir.into_iter().progress() {
+            let source_file_name = source_file.file_stem().unwrap();
+            let here = PathBuf::from(".").canonicalize().map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: PathBuf::from("."),
+                }
+            })?;
+            let source_path_stem = source_file
+                .iter()
+                .skip_while(|x| *x != here.file_name().unwrap())
+                .skip(2)
+                .collect::<PathBuf>();
+            let dest_path = config
+                .dest
+                .join(source_path_stem.parent().unwrap_or(&source_path_stem))
+                .join(format!("{}.html", source_file_name.to_string_lossy()));
+
+            // If the destination exists, and the source is more recently modified than the
+            // destination, then we skip generating this file.
+
+            if !rebuild_all && !should_regenerate_file(&source_file, &dest_path)? {
+                continue;
+            }
+
+            // Parse the markdown into html
+            let source = fs::read_to_string(&source_file).await.map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: source_file.clone(),
+                }
+            })?;
+
+            let (html, page_info) = Error::unwrap_gracefully(self.parse_markdown(source, source_file.clone()));
+            let template = page_info.template;
+            let stylesheet = page_info.style;
+
+            // If the template file doesn't exist, skip this file
+            if !template.is_file() {
+                Error::MissingTemplate {
+                    source_file,
+                    expected_template_file: template,
+                }
+                .report();
+                continue;
+            }
+
+            // Get the favicon file path
+            let favicon_path = page_info.favicon.unwrap_or(PathBuf::from(&config.default_favicon));
+
+            // If the favicon file doesn't exist, skip this file.
+            if !favicon_path.is_file() {
+                Error::MissingFavicon {
+                    source_file,
+                    expected_favicon_file: favicon_path,
+                }
+                .report();
+                continue;
+            }
+            let favicon_name = favicon_path.to_string_lossy().to_string();
+            let favicon_encoded = if let Some((_, contents)) = open_assets.get(&favicon_name) {
+                contents.clone()
+            }
+            else {
+                // Base64 encode the favicon and wrap it in the icon HTML
+                let encoded = format!(
+                    "<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{}\">",
+                    self.read_to_base64_string(favicon_path.clone()).await?
+                );
+
+                open_assets.insert(favicon_name, ("favicon", encoded.clone()));
+                encoded
+            };
+
+
+            // Read the stylesheet and wrap it in html
+            let stylesheet_name = stylesheet.to_string_lossy().to_string();
+            let stylesheet = if let Some((_, contents)) = open_assets.get(&stylesheet_name) {
+                contents.clone()
+            }
+            else {
+                let stylesheet = format!(
+                    "<style>{}</style>",
+                    fs::read_to_string(&stylesheet).await.map_err(|e| {
+                        Error::Io {
+                            err:  e,
+                            path: stylesheet,
+                        }
+                    })?
+                );
+
+                open_assets.insert(stylesheet_name, ("favicon", stylesheet.clone()));
+                stylesheet
+            };
+
+
+            // Add the markdown html into the template html, then write it out.
+            let html = Error::unwrap_gracefully(fs::read_to_string(&template).await.map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: template.clone(),
+                }
+            }))
+            .replace(TEMPLATE_NAME_BODY, &html)
+            .replace(TEMPLATE_NAME_TITLE, &page_info.title)
+            .replace(TEMPLATE_NAME_DESC, &page_info.description)
+            .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded)
+            .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
+
+            // Create the parent dir in the destination path
+            let dest_path_parent = dest_path.parent().unwrap_or(&dest_path);
+            if !dest_path_parent.exists() {
+                fs::create_dir_all(dest_path_parent).await.map_err(|e| {
+                    Error::Io {
+                        err:  e,
+                        path: dest_path_parent.to_path_buf(),
+                    }
+                })?;
+            }
+
+            // Perform final actions on html
+            let html = post_process_html(html)?;
+
+            // Write out the file
+            Error::unwrap_gracefully(fs::write(&dest_path, html).await.map_err(|e| {
+                Error::Io {
+                    err:  e,
+                    path: dest_path,
+                }
+            }));
+        }
+        Ok(())
+    }
 }
 
 
 fn should_regenerate_file(source: &Path, dest: &Path) -> Result<bool>
 {
-    if !dest.exists() {
+    if dest.exists() {
         let source_path_metadata = source.metadata().map_err(|e| {
             Error::Io {
                 err:  e,
@@ -185,160 +335,7 @@ fn walk_directory(path: &Path) -> Vec<PathBuf>
 }
 
 
-pub fn build(config: Config, rebuild_all: bool) -> Result<()>
-{
-    let (syntax_set_builder, mut themes) = get_syntaxes(&config)?;
-    let theme = match themes.remove(&config.syntax_theme) {
-        None => Err(Error::MissingTheme(config.syntax_theme)),
-        Some(x) => Ok(x),
-    }?;
-    let site = Rc::new(Website::new(syntax_set_builder.build(), theme));
-    let source_file_dir = walk_directory(&config.source);
-    let source_file_count = source_file_dir.len();
-
-    // If there's no source files we exit with an error
-    if source_file_count == 0 {
-        return Err(Error::MissingSourceFiles(config.source));
-    }
-
-    // The assets we've already loaded.
-    let mut open_assets: BTreeMap<String, (&str, String)> = BTreeMap::new();
-
-    for source_file in source_file_dir.into_iter().progress() {
-        let source_file_name = source_file.file_stem().unwrap();
-        let here = PathBuf::from(".").canonicalize().map_err(|e| {
-            Error::Io {
-                err:  e,
-                path: PathBuf::from("."),
-            }
-        })?;
-        let source_path_stem = source_file
-            .iter()
-            .skip_while(|x| *x != here.file_name().unwrap())
-            .skip(2)
-            .collect::<PathBuf>();
-        let dest_path = config
-            .dest
-            .join(source_path_stem.parent().unwrap_or(&source_path_stem))
-            .join(format!("{}.html", source_file_name.to_string_lossy()));
-
-        // If the destination exists, and the source is more recently modified than the
-        // destination, then we skip generating this file.
-
-        if !rebuild_all && !should_regenerate_file(&source_file, &dest_path)? {
-            continue;
-        }
-
-        // Parse the markdown into html
-        let source = fs::read_to_string(&source_file).map_err(|e| {
-            Error::Io {
-                err:  e,
-                path: source_file.clone(),
-            }
-        })?;
-
-        let (html, page_info) = Error::unwrap_gracefully(site.clone().parse_markdown(source, source_file.clone()));
-        let template = page_info.template;
-        let stylesheet = page_info.style;
-
-        // If the template file doesn't exist, skip this file
-        if !template.is_file() {
-            Error::MissingTemplate {
-                source_file,
-                expected_template_file: template,
-            }
-            .report();
-            continue;
-        }
-
-        // Get the favicon file path
-        let favicon_path = page_info.favicon.unwrap_or(PathBuf::from(&config.default_favicon));
-
-        // If the favicon file doesn't exist, skip this file.
-        if !favicon_path.is_file() {
-            Error::MissingFavicon {
-                source_file,
-                expected_favicon_file: favicon_path,
-            }
-            .report();
-            continue;
-        }
-        let favicon_name = favicon_path.to_string_lossy().to_string();
-        let favicon_encoded = if let Some((_, contents)) = open_assets.get(&favicon_name) {
-            contents.clone()
-        }
-        else {
-            // Base64 encode the favicon and wrap it in the icon HTML
-            let encoded = format!(
-                "<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{}\">",
-                site.read_to_base64_string(favicon_path.clone())?
-            );
-
-            open_assets.insert(favicon_name, ("favicon", encoded.clone()));
-            encoded
-        };
-
-
-        // Read the stylesheet and wrap it in html
-        let stylesheet_name = stylesheet.to_string_lossy().to_string();
-        let stylesheet = if let Some((_, contents)) = open_assets.get(&stylesheet_name) {
-            contents.clone()
-        }
-        else {
-            let stylesheet = format!(
-                "<style>{}</style>",
-                fs::read_to_string(&stylesheet).map_err(|e| {
-                    Error::Io {
-                        err:  e,
-                        path: stylesheet,
-                    }
-                })?
-            );
-
-            open_assets.insert(stylesheet_name, ("favicon", stylesheet.clone()));
-            stylesheet
-        };
-
-
-        // Add the markdown html into the template html, then write it out.
-        let html = Error::unwrap_gracefully(fs::read_to_string(&template).map_err(|e| {
-            Error::Io {
-                err:  e,
-                path: template.clone(),
-            }
-        }))
-        .replace(TEMPLATE_NAME_BODY, &html)
-        .replace(TEMPLATE_NAME_TITLE, &page_info.title)
-        .replace(TEMPLATE_NAME_DESC, &page_info.description)
-        .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded)
-        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
-
-        // Create the parent dir in the destination path
-        let dest_path_parent = dest_path.parent().unwrap_or(&dest_path);
-        if !dest_path_parent.exists() {
-            fs::create_dir_all(dest_path_parent).map_err(|e| {
-                Error::Io {
-                    err:  e,
-                    path: dest_path_parent.to_path_buf(),
-                }
-            })?;
-        }
-
-        // Perform final actions on html
-        let html = post_process_html(html)?;
-
-        // Write out the file
-        Error::unwrap_gracefully(fs::write(&dest_path, html).map_err(|e| {
-            Error::Io {
-                err:  e,
-                path: dest_path,
-            }
-        }));
-    }
-    Ok(())
-}
-
-fn get_syntaxes(
+pub fn get_syntaxes(
     config: &Config,
 ) -> Result<(
     syntect::parsing::SyntaxSetBuilder,
@@ -425,7 +422,7 @@ mod tests
             .themes
             .remove(SYNTAX_HIGHLIGHT_THEME)
             .unwrap();
-        let site = Website::new(SyntaxSet::load_defaults_newlines(), theme);
+        let site = Website::new(Config::default(), SyntaxSet::load_defaults_newlines(), theme);
         let markdown = r#"```pageinfo
 title = "hello world"
 description = "Useless"
@@ -447,7 +444,7 @@ template = "template.html"
             .themes
             .remove(SYNTAX_HIGHLIGHT_THEME)
             .unwrap();
-        let site = Website::new(SyntaxSet::load_defaults_newlines(), theme);
+        let site = Website::new(Config::default(), SyntaxSet::load_defaults_newlines(), theme);
         let markdown = r#"```pageinfo
 title = "hello world"
 description = "Useless"

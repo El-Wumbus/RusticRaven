@@ -78,6 +78,12 @@ pub enum Error
 
     #[error("[{}] HtmlPostprocessError: There was an error generated HTML: \"{0}\"", crate::NAME)]
     HtmlPostprocess(String),
+
+    #[error(
+        "[{}] AsyncJoinError: There was an internal error during the build process.",
+        crate::NAME
+    )]
+    AysncJoin,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
