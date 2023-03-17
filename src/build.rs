@@ -120,7 +120,7 @@ impl Website
 
     pub async fn make_html_from_md(
         &self,
-        source_file: PathBuf,
+        source_file: (PathBuf, String),
         open_assets: Arc<DashMap<PathBuf, String>>,
         pb: indicatif::ProgressBar,
         rebuild_all: bool,
@@ -128,6 +128,7 @@ impl Website
     {
         let assets = open_assets.clone();
         let config = &self.config;
+        let (source_file, source_file_extention) = source_file;
         let source_file_name = source_file.file_stem().unwrap();
         let here = PathBuf::from(".").canonicalize().map_err(|e| {
             Error::Io {
@@ -146,7 +147,32 @@ impl Website
             .join(source_path_stem.parent().unwrap_or(&source_path_stem))
             .join(format!("{}.html", source_file_name.to_string_lossy()));
 
-        // If the destination exists, and the source is more recently modified than the
+        match &*source_file_extention {
+            "md" | "markdown" => (),
+            "html" | "htm" => {
+                let html = fs::read_to_string(&source_file).await.map_err(|e| {
+                    Error::Io {
+                        err:  e,
+                        path: source_file,
+                    }
+                })?;
+
+                // Perform final actions on html
+                let html = post_process_html(html)?;
+
+                fs::write(&dest_path, html).await.map_err(|e| {
+                    Error::Io {
+                        err:  e,
+                        path: dest_path,
+                    }
+                })?;
+
+                return Ok(());
+            }
+            _ => return Ok(()),
+        }
+
+        // If the destination exists, and the source is more recent'ly modified than the
         // destination, then we skip generating this file.
 
         if !rebuild_all && !should_regenerate_file(&source_file, &dest_path)? {
@@ -178,25 +204,20 @@ impl Website
         // Get the favicon file path
         let favicon_path = page_info.favicon.unwrap_or(PathBuf::from(&config.default_favicon));
 
-        // If the favicon file doesn't exist, skip this file.
-        if !favicon_path.is_file() {
-            Error::MissingFavicon {
-                source_file,
-                expected_favicon_file: favicon_path,
-            }
-            .report();
-            return Ok(());
-        }
         let favicon_path = favicon_path.canonicalize().unwrap_or(favicon_path);
         let favicon_encoded = if let Some(contents) = assets.get(&favicon_path) {
             contents.clone()
         }
         else {
-            // Base64 encode the favicon and wrap it in the icon HTML
-            let encoded = format!(
-                "<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{}\">",
+            // If the favicon isn't found then one isn't inserted.
+            let b64 = if favicon_path.is_file() {
                 self.read_to_base64_string(favicon_path.clone()).await?
-            );
+            }
+            else {
+                String::new()
+            };
+            // Base64 encode the favicon and wrap it in the icon HTML
+            let encoded = format!("<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{b64}\">",);
 
             assets.insert(favicon_path, encoded.clone());
             encoded
@@ -347,28 +368,28 @@ fn should_regenerate_file(source: &Path, dest: &Path) -> Result<bool>
     Ok(true)
 }
 
-fn walk_directory(path: &Path) -> Vec<PathBuf>
+fn walk_directory(path: &Path) -> Vec<(PathBuf, String)>
 {
     // Walk the source directory and filter the results to only include files
     // that have a markdown file extention
     #[allow(clippy::unnecessary_unwrap)]
-    let contents: Vec<PathBuf> = WalkDir::new(path)
+    let contents: Vec<(PathBuf, String)> = WalkDir::new(path)
         .into_iter()
         .filter_map(|x| {
+            let extention: &str = &x
+                .as_ref()
+                .unwrap()
+                .path()
+                .extension()
+                .unwrap_or(&OsString::new())
+                .to_string_lossy()
+                .to_lowercase();
             let x = x;
             if x.is_ok() && {
-                let extention: &str = &x
-                    .as_ref()
-                    .unwrap()
-                    .path()
-                    .extension()
-                    .unwrap_or(&OsString::new())
-                    .to_string_lossy()
-                    .to_lowercase();
-
-                x.as_ref().unwrap().path().is_file() && (extention == "markdown" || extention == "md")
+                x.as_ref().unwrap().path().is_file()
+                    && (extention == "markdown" || extention == "md" || extention == "html" || extention == "htm")
             } {
-                Some(x.unwrap().path().to_path_buf())
+                Some((x.unwrap().path().to_path_buf(), extention.to_string()))
             }
             else {
                 // If x is an error we print an error, but we continue.

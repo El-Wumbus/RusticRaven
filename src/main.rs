@@ -20,6 +20,7 @@ mod config;
 pub use config::*;
 mod build;
 use build::*;
+mod defaults;
 
 const NAME: &str = "RusticRaven";
 const DESC: &str = "A static html generator";
@@ -138,7 +139,7 @@ async fn main() -> error::Result<()>
         Options::Init { directory } => {
             // Change directories into the specified directory.
             std::env::set_current_dir(directory).unwrap();
-            init(Config::default()).await
+            Error::unwrap_gracefully(init(Config::default()).await)
         }
         Options::Build {
             config_path,
@@ -196,7 +197,7 @@ async fn main() -> error::Result<()>
             }
             // Change directories into the specified directory.
             std::env::set_current_dir(name).unwrap();
-            init(config).await
+            Error::unwrap_gracefully(init(config).await)
         }
     };
 
@@ -270,56 +271,91 @@ async fn clean(config: Config) -> Result<()>
 }
 
 /// Initialize a directiory with the defualt doodads
-async fn init(config: Config)
+async fn init(config: Config) -> Result<()>
 {
     let configuration_file_path = PathBuf::from(Config::DEFAULT_CONFIG_FILE);
 
     if configuration_file_path.exists() {
-        return;
+        return Ok(());
     }
 
     // Open a new conf file, we err if the file already exists
-    let f = Error::unwrap_gracefully(fs::File::create(&configuration_file_path).await.map_err(|e| {
+    let f = fs::File::create(&configuration_file_path).await.map_err(|e| {
         Error::Io {
             err:  e,
             path: configuration_file_path.clone(),
         }
-    }));
+    })?;
+    println!("Created: \"{}\"", configuration_file_path.display());
 
     // Serialize the defualt values, then write it to the new config file;
     let toml = toml::to_string_pretty(&config).unwrap();
-    Error::unwrap_gracefully(f.into_std().await.write_all(toml.as_bytes()).map_err(|e| {
+    f.into_std().await.write_all(toml.as_bytes()).map_err(|e| {
         Error::Io {
             err:  e,
             path: configuration_file_path,
         }
-    }));
+    })?;
 
     // create dirs
     let source = config.source;
     let dest = config.dest;
     let syntaxes = config.syntaxes;
     let custom_syntax_themes = config.custom_syntax_themes;
-    Error::unwrap_gracefully(
-        fs::create_dir(&source)
-            .await
-            .map_err(|e| Error::Io { err: e, path: source }),
-    );
-    Error::unwrap_gracefully(
-        fs::create_dir(&dest)
-            .await
-            .map_err(|e| Error::Io { err: e, path: dest }),
-    );
-    Error::unwrap_gracefully(fs::create_dir(&syntaxes).await.map_err(|e| {
+    fs::create_dir(&source).await.map_err(|e| {
         Error::Io {
             err:  e,
-            path: syntaxes,
+            path: source.clone(),
         }
-    }));
-    Error::unwrap_gracefully(fs::create_dir(&custom_syntax_themes).await.map_err(|e| {
+    })?;
+    println!("Created: \"{}\"", source.display());
+    fs::create_dir(&dest).await.map_err(|e| {
         Error::Io {
             err:  e,
-            path: custom_syntax_themes,
+            path: dest.clone(),
         }
-    }));
+    })?;
+    println!("Created: \"{}\"", dest.display());
+    fs::create_dir(&syntaxes).await.map_err(|e| {
+        Error::Io {
+            err:  e,
+            path: syntaxes.clone(),
+        }
+    })?;
+    println!("Created: \"{}\"", syntaxes.display());
+    fs::create_dir(&custom_syntax_themes).await.map_err(|e| {
+        Error::Io {
+            err:  e,
+            path: custom_syntax_themes.clone(),
+        }
+    })?;
+    println!("Created: \"{}\"", custom_syntax_themes.display());
+    fs::write("template.html", defaults::DEFAULT_HTML_TEMPLATE_SRC)
+        .await
+        .map_err(|e| {
+            Error::Io {
+                err:  e,
+                path: PathBuf::from("template.html"),
+            }
+        })?;
+    println!("Created: \"template.html\"");
+    fs::write("style.css", defaults::DEFAULT_CSS_STYLESHEET_SRC)
+        .await
+        .map_err(|e| {
+            Error::Io {
+                err:  e,
+                path: PathBuf::from("style.css"),
+            }
+        })?;
+    println!("Created: \"style.css\"");
+    fs::write("src/index.md", defaults::DEFAULT_MD_STARTER_SRC)
+        .await
+        .map_err(|e| {
+            Error::Io {
+                err:  e,
+                path: PathBuf::from("src/index.md"),
+            }
+        })?;
+    println!("Created: \"src/index.md\"");
+    Ok(())
 }
