@@ -1,5 +1,56 @@
 # RusticRaven
 
+## Installation
+
+### Releases
+
+You can pick the latest release archive from the [GitHub Releases](https://github.com/El-Wumbus/RusticRaven/releases/latest).
+
+#### Snap
+
+To download the latest [snap release](https://snapcraft.io/rustic-raven/) you can use the following commands:
+
+```sh
+sudo snap install rustic-raven
+```
+In this case the executable will be named differently than with other installation options (`rustic-raven.raven`).
+
+##### Building the snap yourself
+
+In some cases, you may want to build the snap yourself.
+To do this, you'll need to have `snapd` installed and have installed the following snaps:
+
+- `lxd`
+  - [This may require a little configuration](https://ubuntu.com/server/docs/containers-lxd)
+- `snapcraft`
+- `multipass`
+
+```bash
+git clone https://github.com/El-Wumbus/RusticRaven
+cd RusticRaven
+
+snapcraft # Build the snap
+sudo snap install --dangerous rustic-raven_*.snap # Install the snap
+```
+
+### Compiling
+
+#### PKGBUILD (Arch Linux and its derivatives)
+
+```bash
+curl -LO https://github.com/El-Wumbus/RusticRaven/raw/master/PKGBUILD
+makepkg -si
+```
+
+#### Cargo (Everyone)
+
+```bash
+git clone https://github.com/El-Wumbus/RusticRaven
+cd RusticRaven
+cargo build --release
+sudo install -dvm755 target/release/raven /usr/local/bin/raven
+```
+
 ## Usage
 
 The usage information of the project can be obtained with the `--help` option.
