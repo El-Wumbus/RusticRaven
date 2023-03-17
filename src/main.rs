@@ -209,9 +209,9 @@ async fn main() -> error::Result<()>
 async fn clean(config: Config) -> Result<()>
 {
     let pbs = ProgressStyle::default_bar()
-    .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({percent}%) {msg}")
-    .unwrap()
-    .progress_chars("#>-");
+        .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({percent}%) {msg}")
+        .unwrap()
+        .progress_chars("#>-");
 
     let dest_dir = &config.dest;
     if dest_dir.is_dir()

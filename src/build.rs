@@ -266,7 +266,7 @@ impl Website
 
 pub async fn build(site: Website, rebuild_all: bool) -> Result<()>
 {
-    use indicatif::{ProgressBar};
+    use indicatif::ProgressBar;
     let site = Arc::new(site);
     let config = &site.config;
     let source_file_dir = walk_directory(&config.source);
