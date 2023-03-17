@@ -6,7 +6,6 @@ The usage information of the project can be obtained with the `--help` option.
 
 ```
 RusticRaven
-A static html generator
 
 USAGE:
     raven <SUBCOMMAND>
@@ -29,26 +28,6 @@ To get the usage information of a subcommand, do something like the following: `
 
 To create a new project, use the `new` or `init` subcommands.
 
-```
-Create a new directory and initalize it
-
-USAGE:
-    raven new [OPTIONS] <name>
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -d, --dest <dest>                      The name of the output directory (Where the generated HTML goes)
-    -s, --source <source>                  The name of the source directory
-    -t, --syntax_themes <syntax-themes>    The name of the custom syntax themes directory
-    -y, --syntaxes <syntaxes>              The name of the custom syntax directory
-
-ARGS:
-    <name>    The name of the new project
-```
-
 ```sh
 $ raven new foo --dest docs
 Created: "raven.toml"
@@ -64,7 +43,7 @@ Created: "src/index.md"
 `foo` now contains all the above listed files. This is the default project and is fully buildable. To do so, use `build`.
 You can build by `cd`ing into the new directory or by passing in the new directory (`raven build foo`).
 
-```
+```sh
 # foo/
 $ raven build
 [00:00:00] [########################################] 1/1 (100%) Done                                                                                             

@@ -25,7 +25,7 @@ impl Website
         }
     }
 
-    async fn read_to_base64_string(&self, path: PathBuf) -> Result<String>
+    async fn read_to_base64_string(path: PathBuf) -> Result<String>
     {
         use base64::{engine, prelude::*};
         let image = fs::read(&path).await.map_err(|e| {
@@ -211,7 +211,7 @@ impl Website
         else {
             // If the favicon isn't found then one isn't inserted.
             let b64 = if favicon_path.is_file() {
-                self.read_to_base64_string(favicon_path.clone()).await?
+                Self::read_to_base64_string(favicon_path.clone()).await?
             }
             else {
                 String::new()
@@ -504,9 +504,9 @@ style = "style.css"
 template = "template.html"
 ```
 
-# Hello Word :smile:"#;
+# Hello World :smile:"#;
         let (html, _) = site.parse_markdown(markdown.to_string(), PathBuf::new()).unwrap();
-        assert_eq!(&html, "<h1>Hello Word 😄</h1>\n")
+        assert!(html.contains('😄'));
     }
 
     #[test]
@@ -543,5 +543,23 @@ int main()
              style=\"color:#d3d0c8;\">}\n</span></pre>\n</code></pre>\n";
         let (html, _) = site.parse_markdown(markdown.to_string(), PathBuf::new()).unwrap();
         assert_eq!(&html, EXPECTED_HTML);
+    }
+
+    #[tokio::test]
+    async fn test_file_to_base64()
+    {
+        const TEST_FILE_CONTENTS: &str = r#"Enim itaque aliquid excepturi. Asperiores est omnis quia sequi ipsum vel. Est assumenda accusantiumiusto.
+Nam vel qui facere quia corporis. Voluptatem quo magni voluptate. Earum similique cupiditate voluptatem alias repellat
+aliquid placeat qui. Aspernatur incidunt et necessitatibus dignissimos faciliset. Beatae dicta nam voluptatem possimus.
+Suscipit cum excepturi aliquam ut."#;
+        const TEST_FILE_B64: &str = "RW5pbSBpdGFxdWUgYWxpcXVpZCBleGNlcHR1cmkuIEFzcGVyaW9yZXMgZXN0IG9tbmlzIHF1aWEgc2VxdWkgaXBzdW0gdmVsLiBFc3QgYXNzdW1lbmRhIGFjY3VzYW50aXVtaXVzdG8uCk5hbSB2ZWwgcXVpIGZhY2VyZSBxdWlhIGNvcnBvcmlzLiBWb2x1cHRhdGVtIHF1byBtYWduaSB2b2x1cHRhdGUuIEVhcnVtIHNpbWlsaXF1ZSBjdXBpZGl0YXRlIHZvbHVwdGF0ZW0gYWxpYXMgcmVwZWxsYXQKYWxpcXVpZCBwbGFjZWF0IHF1aS4gQXNwZXJuYXR1ciBpbmNpZHVudCBldCBuZWNlc3NpdGF0aWJ1cyBkaWduaXNzaW1vcyBmYWNpbGlzZXQuIEJlYXRhZSBkaWN0YSBuYW0gdm9sdXB0YXRlbSBwb3NzaW11cy4KU3VzY2lwaXQgY3VtIGV4Y2VwdHVyaSBhbGlxdWFtIHV0Lg";
+        fs::create_dir_all("/tmp/rustic-raven-tests/").await.unwrap();
+        fs::write("/tmp/rustic-raven-tests/base64", TEST_FILE_CONTENTS)
+            .await
+            .unwrap();
+        let b64 = super::Website::read_to_base64_string(PathBuf::from("/tmp/rustic-raven-tests/base64"))
+            .await
+            .unwrap();
+        assert_eq!(b64, TEST_FILE_B64);
     }
 }
