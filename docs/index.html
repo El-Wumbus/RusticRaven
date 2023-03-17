@@ -1,0 +1,54 @@
+<!doctypehtml><html lang=en><meta charset=UTF-8><meta content="IE=edge"http-equiv=X-UA-Compatible><meta content="width=device-width,initial-scale=1"name=viewport><meta content="Rustic Raven"property=og:title><meta content="A static html generator"property=og:description><link href=data:image/x-icon;base64, rel=icon type=image/x-icon><title>Rustic Raven</title><style>@import url('https://fonts.googleapis.com/css2?family=Fira+Code');*{box-sizing:border-box;font-family:Kumbh Sans,sans-serif;scroll-behavior:smooth}:root {background:#1d2021;color:#e7d7ad}body{margin-left:2rem;margin-right:2rem}pre{border:0;border-radius:.8rem;margin-bottom:0;padding:1rem;background:#282828}pre pre{padding:0;margin:0;border-radius:0}pre code,pre pre code{padding:0;font:small Fira Code SemiBold}code{padding:2px;font:small Fira Code SemiBold;background:#282828;border-radius:2px}a code{text-decoration:underline;text-decoration-color:#83a598;text-shadow:#83a598;color:#83a598}h1,h2,h3,h4,h5,h6{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin:0;color:#fbf1c7}h1:before,h2:before,h3:before,h4:before,h5:before,h6:before {content:"# "}table{margin-top:1rem;border:1px solid}li{padding-top:3px}</style><h1>RusticRaven</h1><h2>Usage</h2><p>The usage information of the project can be obtained with the <code>--help</code> option.<pre><code>RusticRaven
+A static html generator
+
+USAGE:
+    raven &LTSUBCOMMAND>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+SUBCOMMANDS:
+    build    Build static HTML from an existing project
+    clean    Clean the dest dir of generated files and directories
+    help     Prints this message or the help of the given subcommand(s)
+    init     Initialize a new project
+    new      Create a new directory and initalize it
+</code></pre><p>To get the usage information of a subcommand, do something like the following: <code>raven help &LTsubcommand></code> or <code>raven &LTsubcommand> --help</code>.<h3>Setting up a project</h3><p>To create a new project, use the <code>new</code> or <code>init</code> subcommands.<pre><code class=language-sh><pre style=background:#282828>
+<span style=color:#ead4af>$ raven new foo</span><span style=color:#fd971f> --dest</span><span style=color:#ead4af> docs
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"raven.toml"
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"src"
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"docs"
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"syntaxes"
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"syntax-themes"
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"template.html"
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"style.css"
+</span><span style=color:#ead4af>Created: </span><span style=color:#aab11e>"src/index.md"
+</span></pre>
+</code></pre><p><code>foo</code> now contains all the above listed files. This is the default project and is fully buildable. To do so, use <code>build</code>. You can build by <code>cd</code>ing into the new directory or by passing in the new directory (<code>raven build foo</code>).<pre><code class=language-sh><pre style=background:#282828>
+<span style=color:#908476># foo/
+</span><span style=color:#ead4af>$ raven build
+</span><span style=color:#ead4af>[00:00:00] </span><span style=color:#fb4938>[</span><span style=color:#ead4af>########################################</span><span style=color:#fb4938>]</span><span style=color:#ead4af> 1/1 (100%) Done                                                                                             
+</span></pre>
+</code></pre><p>Now, in the <code>foo/docs</code> directory is the <code>index.html</code> file. Preview it in a web browser. By default the html is minified.<h3>Configuration 📄</h3><p>To make a new project with the defualt configuration run the <code>init</code> subcommand. The default configuration looks similar to below:<pre><code class=language-toml><pre style=background:#282828>
+<span style=color:#908476># raven.toml
+</span><span style=color:#ead4af>
+</span><span style=font-style:italic;color:#ead4af>source </span><span style=color:#ead4af>= </span><span style=color:#aab11e>"src"
+</span><span style=font-style:italic;color:#ead4af>dest </span><span style=color:#ead4af>= </span><span style=color:#aab11e>"dest"
+</span><span style=font-style:italic;color:#ead4af>syntaxes </span><span style=color:#ead4af>= </span><span style=color:#aab11e>"syntaxes"
+</span><span style=font-style:italic;color:#ead4af>syntax_theme </span><span style=color:#ead4af>= </span><span style=color:#aab11e>"base16-eighties.dark"
+</span><span style=font-style:italic;color:#ead4af>custom_syntax_themes </span><span style=color:#ead4af>= </span><span style=color:#aab11e>"syntax-themes"
+</span><span style=font-style:italic;color:#ead4af>default_favicon </span><span style=color:#ead4af>= </span><span style=color:#aab11e>"favicon.png"
+</span></pre>
+</code></pre><table><thead><tr><th>Name<th>Description<tbody><tr><td><code>source</code><td>Where Markdown source files are stored<tr><td><code>dest</code><td>Where generated HTML files are stored<tr><td><code>syntaxes</code><td>Where additional syntax highliting files are stored<tr><td><code>syntax_theme</code><td>The syntax highlighting theme to use<tr><td><code>custom_syntax_themes</code><td>Where custom syntax highlighting themes are stored<tr><td><code>default_favicon</code><td>The defualt favxicon used for files that don't supply one<tr><td><code>process_html</code><td>If generated HTML should be processed (minimized, etc.)</table><p>The defualt syntax themes are as follows:<ul><li><code>base16-ocean.dark</code><li><code>base16-eighties.dark</code><li><code>base16-mocha.dark</code><li><code>base16-ocean.light</code><li><a href=https://github.com/sethlopezme/InspiredGitHub.tmtheme><code>InspiredGitHub</code></a><li><code>Solarized (dark)</code><li><code>Solarized (light)</code></ul><p>To add a custom syntax theme, add a sublime-syntax file (e.g. <code>TOML.sublime-syntax</code>) into the <code>syntaxes</code> directory. This file describes what to use in the markdown (what comes after the <code>```</code>).<h4>Page Info</h4><p>In each markdown file a code block with the language specifier <code>pageinfo</code> is required, it should look similar to below. It is parsed as TOML and is <strong>not</strong> included in the final HTML document.<pre><code class=language-markdown><pre style=background:#282828>
+<span style=color:#ead4af>```</span><span style=color:#cc869b>pageinfo
+</span><span style=color:#ead4af>title = "Hello, World"
+</span><span style=color:#ead4af>description = "Greet the world"
+</span><span style=color:#ead4af>style = "style.css"
+</span><span style=color:#ead4af>template = "template.html"
+</span><span style=color:#ead4af>
+</span><span style=color:#ead4af># optional
+</span><span style=color:#ead4af>favicon = favicon.ico
+</span><span style=color:#ead4af>```
+</span></pre>
+</code></pre><p>The first two items here are self-explainatory. <code>style</code> is the stylesheet to be embeded into the HTML document. It's path is relative to the <code>raven.toml</code> at the root of the project, the same thing is true in regard to the <code>template</code> and <code>favicon</code> keys. <code>template</code> is the HTML template to embed the generated HTML into, each document can use whichever template that is available. <code>favicon</code> is optional: if it's omitted, or the file isn't found, then the generated HTML doesn't have a favicon. The favicon is encoded in base64 and stored using a data url in the generated HTML. The favicon is not copied to the configured destination directory.<h3>Considerations</h3><h4>File handling</h4><ul><li>Markdown files (<code>.md</code> or <code>.markdown</code>) in the configured source directory will be parsed and generated into HTML files in the configured destination directory.<li>HTML files (<code>.html</code> or <code>.htm</code>) in the configured source directory will be copied to the configured destination deirectory (after, if enabled, processing).<li>Everything else in the configured source directory gets ignored.</ul>

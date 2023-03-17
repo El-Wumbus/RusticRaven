@@ -1,0 +1,7 @@
+source = "src"
+dest = "docs"
+syntaxes = "syntaxes"
+syntax_theme = "gruvbox"
+custom_syntax_themes = "syntax-themes"
+default_favicon = "favicon.ico"
+process_html = true

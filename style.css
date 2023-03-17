@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code');
+
+* {
+    box-sizing: border-box;
+    font-family: "Kumbh Sans", sans-serif;
+    scroll-behavior: smooth;
+}
+
+:root {
+    background-color: #1d2021;
+    color: #e7d7ad
+}
+
+body {
+    margin-left: 2rem;
+    margin-right: 2rem;
+}
+
+pre {
+
+    border-width: 0;
+    border-radius: 0.8rem;
+    margin-bottom: 0;
+    padding: 1rem;
+    background-color: #282828;
+}
+
+pre pre {
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+}
+
+
+pre code,
+pre pre code {
+    font-family: "Fira Code SemiBold";
+    font-size: small;
+    padding: 0;
+    
+}
+
+code {
+    font-family: "Fira Code SemiBold";
+    font-size: small;
+    background-color: #282828;
+    border-radius: 2px;
+    padding: 2px;
+}
+
+a code {
+    text-decoration: underline;
+    text-decoration-color: #83A598;
+    text-shadow: #83A598;
+    color:#83A598;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    color: #fbf1c7;
+}
+
+h1:before,
+h2:before,
+h3:before,
+h4:before,
+h5:before,
+h6:before {
+    content: "# ";
+}
+
+table {
+    margin-top: 1rem;
+    border: 1px solid;
+}
+
+li {
+    padding-top: 3px;
+}
