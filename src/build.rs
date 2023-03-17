@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use chrono::{DateTime, Local};
-use zzz::ProgressBarIterExt as _;
+use dashmap::DashMap;
 
 use crate::*;
 
@@ -118,155 +118,207 @@ impl Website
         Ok((html_out, page_info))
     }
 
-    pub async fn build(&self, rebuild_all: bool) -> Result<()>
+    pub async fn make_html_from_md(
+        &self,
+        source_file: PathBuf,
+        open_assets: Arc<DashMap<PathBuf, String>>,
+        pb: indicatif::ProgressBar,
+        rebuild_all: bool,
+    ) -> Result<()>
     {
+        let assets = open_assets.clone();
         let config = &self.config;
-        let source_file_dir = walk_directory(&config.source);
-        let source_file_count = source_file_dir.len();
+        let source_file_name = source_file.file_stem().unwrap();
+        let here = PathBuf::from(".").canonicalize().map_err(|e| {
+            Error::Io {
+                err:  e,
+                path: PathBuf::from("."),
+            }
+        })?;
 
-        // If there's no source files we exit with an error
-        if source_file_count == 0 {
-            return Err(Error::MissingSourceFiles(config.source.clone()));
+        let source_path_stem = source_file
+            .iter()
+            .skip_while(|x| *x != here.file_name().unwrap())
+            .skip(2)
+            .collect::<PathBuf>();
+        let dest_path = config
+            .dest
+            .join(source_path_stem.parent().unwrap_or(&source_path_stem))
+            .join(format!("{}.html", source_file_name.to_string_lossy()));
+
+        // If the destination exists, and the source is more recently modified than the
+        // destination, then we skip generating this file.
+
+        if !rebuild_all && !should_regenerate_file(&source_file, &dest_path)? {
+            return Ok(());
         }
 
-        // The assets we've already loaded.
-        let mut open_assets: BTreeMap<String, (&str, String)> = BTreeMap::new();
-
-        for source_file in source_file_dir.into_iter().progress() {
-            let source_file_name = source_file.file_stem().unwrap();
-            let here = PathBuf::from(".").canonicalize().map_err(|e| {
-                Error::Io {
-                    err:  e,
-                    path: PathBuf::from("."),
-                }
-            })?;
-            let source_path_stem = source_file
-                .iter()
-                .skip_while(|x| *x != here.file_name().unwrap())
-                .skip(2)
-                .collect::<PathBuf>();
-            let dest_path = config
-                .dest
-                .join(source_path_stem.parent().unwrap_or(&source_path_stem))
-                .join(format!("{}.html", source_file_name.to_string_lossy()));
-
-            // If the destination exists, and the source is more recently modified than the
-            // destination, then we skip generating this file.
-
-            if !rebuild_all && !should_regenerate_file(&source_file, &dest_path)? {
-                continue;
+        // Parse the markdown into html
+        let source = fs::read_to_string(&source_file).await.map_err(|e| {
+            Error::Io {
+                err:  e,
+                path: source_file.clone(),
             }
+        })?;
 
-            // Parse the markdown into html
-            let source = fs::read_to_string(&source_file).await.map_err(|e| {
-                Error::Io {
-                    err:  e,
-                    path: source_file.clone(),
-                }
-            })?;
+        let (html, page_info) = Error::unwrap_gracefully(self.parse_markdown(source, source_file.clone()));
+        let template = page_info.template;
+        let stylesheet = page_info.style;
 
-            let (html, page_info) = Error::unwrap_gracefully(self.parse_markdown(source, source_file.clone()));
-            let template = page_info.template;
-            let stylesheet = page_info.style;
-
-            // If the template file doesn't exist, skip this file
-            if !template.is_file() {
-                Error::MissingTemplate {
-                    source_file,
-                    expected_template_file: template,
-                }
-                .report();
-                continue;
+        // If the template file doesn't exist, skip this file
+        if !template.is_file() {
+            Error::MissingTemplate {
+                source_file,
+                expected_template_file: template,
             }
+            .report();
+            return Ok(());
+        }
 
-            // Get the favicon file path
-            let favicon_path = page_info.favicon.unwrap_or(PathBuf::from(&config.default_favicon));
+        // Get the favicon file path
+        let favicon_path = page_info.favicon.unwrap_or(PathBuf::from(&config.default_favicon));
 
-            // If the favicon file doesn't exist, skip this file.
-            if !favicon_path.is_file() {
-                Error::MissingFavicon {
-                    source_file,
-                    expected_favicon_file: favicon_path,
-                }
-                .report();
-                continue;
+        // If the favicon file doesn't exist, skip this file.
+        if !favicon_path.is_file() {
+            Error::MissingFavicon {
+                source_file,
+                expected_favicon_file: favicon_path,
             }
-            let favicon_name = favicon_path.to_string_lossy().to_string();
-            let favicon_encoded = if let Some((_, contents)) = open_assets.get(&favicon_name) {
-                contents.clone()
-            }
-            else {
-                // Base64 encode the favicon and wrap it in the icon HTML
-                let encoded = format!(
-                    "<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{}\">",
-                    self.read_to_base64_string(favicon_path.clone()).await?
-                );
+            .report();
+            return Ok(());
+        }
+        let favicon_path = favicon_path.canonicalize().unwrap_or(favicon_path);
+        let favicon_encoded = if let Some(contents) = assets.get(&favicon_path) {
+            contents.clone()
+        }
+        else {
+            // Base64 encode the favicon and wrap it in the icon HTML
+            let encoded = format!(
+                "<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{}\">",
+                self.read_to_base64_string(favicon_path.clone()).await?
+            );
 
-                open_assets.insert(favicon_name, ("favicon", encoded.clone()));
-                encoded
-            };
-
-
-            // Read the stylesheet and wrap it in html
-            let stylesheet_name = stylesheet.to_string_lossy().to_string();
-            let stylesheet = if let Some((_, contents)) = open_assets.get(&stylesheet_name) {
-                contents.clone()
-            }
-            else {
-                let stylesheet = format!(
-                    "<style>{}</style>",
-                    fs::read_to_string(&stylesheet).await.map_err(|e| {
-                        Error::Io {
-                            err:  e,
-                            path: stylesheet,
-                        }
-                    })?
-                );
-
-                open_assets.insert(stylesheet_name, ("favicon", stylesheet.clone()));
-                stylesheet
-            };
+            assets.insert(favicon_path, encoded.clone());
+            encoded
+        };
 
 
-            // Add the markdown html into the template html, then write it out.
-            let html = Error::unwrap_gracefully(fs::read_to_string(&template).await.map_err(|e| {
-                Error::Io {
-                    err:  e,
-                    path: template.clone(),
-                }
-            }))
-            .replace(TEMPLATE_NAME_BODY, &html)
-            .replace(TEMPLATE_NAME_TITLE, &page_info.title)
-            .replace(TEMPLATE_NAME_DESC, &page_info.description)
-            .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded)
-            .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
-
-            // Create the parent dir in the destination path
-            let dest_path_parent = dest_path.parent().unwrap_or(&dest_path);
-            if !dest_path_parent.exists() {
-                fs::create_dir_all(dest_path_parent).await.map_err(|e| {
+        // Read the stylesheet and wrap it in html
+        let stylesheet_path = stylesheet.canonicalize().unwrap_or(stylesheet);
+        let stylesheet = if let Some(contents) = open_assets.get(&stylesheet_path) {
+            contents.clone()
+        }
+        else {
+            let stylesheet = format!(
+                "<style>{}</style>",
+                fs::read_to_string(&stylesheet_path).await.map_err(|e| {
                     Error::Io {
                         err:  e,
-                        path: dest_path_parent.to_path_buf(),
+                        path: stylesheet_path.clone(),
                     }
-                })?;
+                })?
+            );
+
+            assets.insert(stylesheet_path, stylesheet.clone());
+            stylesheet
+        };
+
+
+        // Add the markdown html into the template html, then write it out.
+        let html = Error::unwrap_gracefully(fs::read_to_string(&template).await.map_err(|e| {
+            Error::Io {
+                err:  e,
+                path: template.clone(),
             }
+        }))
+        .replace(TEMPLATE_NAME_BODY, &html)
+        .replace(TEMPLATE_NAME_TITLE, &page_info.title)
+        .replace(TEMPLATE_NAME_DESC, &page_info.description)
+        .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded)
+        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
 
-            // Perform final actions on html
-            let html = post_process_html(html)?;
-
-            // Write out the file
-            Error::unwrap_gracefully(fs::write(&dest_path, html).await.map_err(|e| {
+        // Create the parent dir in the destination path
+        let dest_path_parent = dest_path.parent().unwrap_or(&dest_path);
+        if !dest_path_parent.exists() {
+            fs::create_dir_all(dest_path_parent).await.map_err(|e| {
                 Error::Io {
                     err:  e,
-                    path: dest_path,
+                    path: dest_path_parent.to_path_buf(),
                 }
-            }));
+            })?;
         }
+
+        // Perform final actions on html
+        let html = post_process_html(html)?;
+
+        // Write out the file
+        Error::unwrap_gracefully(fs::write(&dest_path, html).await.map_err(|e| {
+            Error::Io {
+                err:  e,
+                path: dest_path,
+            }
+        }));
+
+        pb.inc(1);
         Ok(())
     }
 }
 
+pub async fn build(site: Website, rebuild_all: bool) -> Result<()>
+{
+    use indicatif::{ProgressBar};
+    let site = Arc::new(site);
+    let config = &site.config;
+    let source_file_dir = walk_directory(&config.source);
+    let source_file_count = source_file_dir.len();
+
+    // If there's no source files we exit with an error
+    if source_file_count == 0 {
+        return Err(Error::MissingSourceFiles(config.source.clone()));
+    }
+
+    // The assets we've already loaded.
+    // We use an Arc<DashMap> over an Arc<Mutex<Hashmap>> for finer-grained locking.
+    // The changes are still syncronized.
+    let open_assets: Arc<DashMap<PathBuf, String>> = Arc::new(DashMap::new());
+    let pb = ProgressBar::new(source_file_count as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({percent}%) {msg}")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+
+    // Create a task for each
+    let builds = source_file_dir
+        .into_iter()
+        .map(|source_file| {
+            let open_assets = open_assets.clone(); // Clone the Arc
+            let site = site.clone(); // Clone the Arc
+            let pb = pb.clone();
+            tokio::spawn(async move {
+                Error::unwrap_gracefully(
+                    site.make_html_from_md(source_file, open_assets, pb.clone(), rebuild_all)
+                        .await
+                        .map_err(|e| {
+                            pb.set_message("Failed");
+                            e
+                        }),
+                );
+            })
+        })
+        .collect::<Vec<_>>();
+
+    pb.set_message("Generating ...");
+    // Wait for builds to finish
+    for build in builds {
+        build.await.unwrap();
+    }
+
+    pb.set_message("Done");
+    pb.finish();
+    Ok(())
+}
 
 fn should_regenerate_file(source: &Path, dest: &Path) -> Result<bool>
 {

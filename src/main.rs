@@ -6,13 +6,13 @@ use std::{
 };
 
 use gh_emoji::Replacer;
+use indicatif::{ProgressIterator, ProgressStyle};
 use pulldown_cmark::{CodeBlockKind, Event};
 use serde::Deserialize;
 use structopt::StructOpt;
 use syntect::{highlighting, parsing::SyntaxSet};
 use tokio::fs;
 use walkdir::{DirEntry, WalkDir};
-use zzz::ProgressBarIterExt as _;
 
 mod error;
 pub use error::*;
@@ -154,7 +154,7 @@ async fn main() -> error::Result<()>
                 Some(x) => Ok(x),
             }?;
             let site = Website::new(config, syntax_set_builder.build(), theme);
-            Error::unwrap_gracefully(site.build(*rebuild_all).await)
+            Error::unwrap_gracefully(build(site, *rebuild_all).await)
         }
         Options::Clean { directory, config_path } => {
             // Change directories into the specified directory.
@@ -208,6 +208,11 @@ async fn main() -> error::Result<()>
 
 async fn clean(config: Config) -> Result<()>
 {
+    let pbs = ProgressStyle::default_bar()
+    .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({percent}%) {msg}")
+    .unwrap()
+    .progress_chars("#>-");
+
     let dest_dir = &config.dest;
     if dest_dir.is_dir()
         && dest_dir
@@ -242,7 +247,7 @@ async fn clean(config: Config) -> Result<()>
 
     // We delete all the files inside the dest dir and create a progress bar to
     // track the progress.
-    for path in dest_dir_contents.iter().progress() {
+    for path in dest_dir_contents.iter().progress_with_style(pbs) {
         let path = path.path();
         if path.is_file() {
             fs::remove_file(path).await.map_err(|e| {

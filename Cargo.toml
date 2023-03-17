@@ -18,7 +18,8 @@ syntect = "5.0.0"
 thiserror = "1.0.39"
 toml = "0.7.3"
 walkdir = "2.3.2"
-zzz = "0.2.0"
+dashmap = "5.4.0"
+indicatif = { version = "0.17.3", features = ["tokio"] }
 
 [[bin]]
 name = "raven"
