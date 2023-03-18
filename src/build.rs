@@ -436,7 +436,7 @@ impl Website
     {
         let assets = self.assets.clone();
         let config = &self.config;
-        let stylesheet = page_info.style;
+        let stylesheet = page_info.style.clone();
 
         // If the template file doesn't exist, skip this file
         if !page_info.template.is_file() {
@@ -449,7 +449,7 @@ impl Website
         }
 
         // Get the favicon file path
-        let favicon_path = page_info.favicon.unwrap_or(PathBuf::from(&config.default_favicon));
+        let favicon_path = page_info.favicon.clone().unwrap_or(PathBuf::from(&config.default_favicon));
         let favicon_path = favicon_path.canonicalize().unwrap_or(favicon_path);
         let favicon_encoded = if let Some(contents) = assets.get(&favicon_path) {
             contents.clone()
@@ -491,20 +491,41 @@ impl Website
         };
 
         // Add the markdown html into the template html, then write it out.
-        let html = Error::unwrap_gracefully(fs::read_to_string(&page_info.template).await.map_err(|e| {
+        let mut template = Error::unwrap_gracefully(fs::read_to_string(&page_info.template).await.map_err(|e| {
             Error::Io {
                 err:  e,
                 path: page_info.template.clone(),
             }
-        }))
-        .replace(TEMPLATE_NAME_BODY, &html)
-        .replace(TEMPLATE_NAME_TITLE, &page_info.title)
-        .replace(TEMPLATE_NAME_DESC, &page_info.description)
-        .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded)
-        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
+        }));
 
-        Ok(html)
+        apply_to_template(&mut template, Some(html), Some(page_info), favicon_encoded, stylesheet);
+        Ok(template)
     }
+}
+
+fn apply_to_template(
+    template: &mut String,
+    html: Option<String>,
+    page_info: Option<PageInfo>,
+    favicon: String,
+    stylesheet: String,
+)
+{
+    html.and_then(|html| {
+        Some({
+            *template = template.replace(TEMPLATE_NAME_BODY, html.as_ref());
+        })
+    });
+    page_info.and_then(|page_info| {
+        Some({
+            *template = template
+                .replace(TEMPLATE_NAME_TITLE, &page_info.title)
+                .replace(TEMPLATE_NAME_DESC, &page_info.description);
+        })
+    });
+    *template = template
+        .replace(TEMPLATE_NAME_FAVICON, &favicon)
+        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
 }
 
 #[cfg(test)]
