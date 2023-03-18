@@ -436,20 +436,29 @@ impl Website
     {
         let assets = self.assets.clone();
         let config = &self.config;
-        let stylesheet = page_info.style.clone();
-
+        let stylesheet = match page_info.style.clone() {
+            Some(x) => x,
+            None => config.default_style.clone(),
+        };
+        let template = match page_info.template.clone() {
+            Some(x) => x,
+            None => config.default_template.clone(),
+        };
         // If the template file doesn't exist, skip this file
-        if !page_info.template.is_file() {
+        if !template.is_file() {
             Error::MissingTemplate {
                 source_file,
-                expected_template_file: page_info.template,
+                expected_template_file: template,
             }
             .report();
             return Err(Error::IntegraionIntoTemplate);
         }
 
         // Get the favicon file path
-        let favicon_path = page_info.favicon.clone().unwrap_or(PathBuf::from(&config.default_favicon));
+        let favicon_path = page_info
+            .favicon
+            .clone()
+            .unwrap_or(PathBuf::from(&config.default_favicon));
         let favicon_path = favicon_path.canonicalize().unwrap_or(favicon_path);
         let favicon_encoded = if let Some(contents) = assets.get(&favicon_path) {
             contents.clone()
@@ -491,10 +500,10 @@ impl Website
         };
 
         // Add the markdown html into the template html, then write it out.
-        let mut template = Error::unwrap_gracefully(fs::read_to_string(&page_info.template).await.map_err(|e| {
+        let mut template = Error::unwrap_gracefully(fs::read_to_string(&template).await.map_err(|e| {
             Error::Io {
                 err:  e,
-                path: page_info.template.clone(),
+                path: template.clone(),
             }
         }));
 

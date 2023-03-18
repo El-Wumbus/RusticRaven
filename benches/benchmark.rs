@@ -36,13 +36,21 @@ fn benchmark_integrate_html_into_template(c: &mut Criterion)
         .remove(&config.syntax_theme)
         .unwrap();
     let assets: Arc<DashMap<PathBuf, String>> = Arc::new(DashMap::new());
-    let site = Website::new(config, SyntaxSet::load_defaults_newlines(), assets, theme);
+    let site = Website::new(config.clone(), SyntaxSet::load_defaults_newlines(), assets, theme);
     let markdown = DEFAULT_MD_BENCHMARK_SRC;
     let (html, page_info) = site
         .parse_markdown(black_box(markdown.to_string()), PathBuf::new())
         .unwrap();
-    std::fs::write(&page_info.style, defaults::DEFAULT_CSS_STYLESHEET_SRC).unwrap();
-    std::fs::write(&page_info.template, defaults::DEFAULT_HTML_TEMPLATE_SRC).unwrap();
+    let stylesheet = match page_info.style.clone() {
+        Some(x) => x,
+        None => config.default_style.clone(),
+    };
+    let template = match page_info.template.clone() {
+        Some(x) => x,
+        None => config.default_template.clone(),
+    };
+    std::fs::write(&stylesheet, defaults::DEFAULT_CSS_STYLESHEET_SRC).unwrap();
+    std::fs::write(&template, defaults::DEFAULT_HTML_TEMPLATE_SRC).unwrap();
 
     let exe = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("throughput");

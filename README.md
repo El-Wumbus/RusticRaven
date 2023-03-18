@@ -108,25 +108,32 @@ To make a new project with the defualt configuration run the `init` subcommand.
 The default configuration looks similar to below:
 
 ```toml
-# raven.toml
-
 source = "src"
 dest = "dest"
 syntaxes = "syntaxes"
 syntax_theme = "base16-eighties.dark"
 custom_syntax_themes = "syntax-themes"
-default_favicon = "favicon.png"
+default_favicon = "favicon.ico"
+default_style = "style.css"
+default_template = "template.html"
+process_html = true
+
+# Optional
+template_source_html = true
 ```
 
-| Name                   | Description                                               |
-| ---------------------- | --------------------------------------------------------- |
-| `source`               | Where Markdown source files are stored                    |
-| `dest`                 | Where generated HTML files are stored                     |
-| `syntaxes`             | Where additional syntax highliting files are stored       |
-| `syntax_theme`         | The syntax highlighting theme to use                      |
-| `custom_syntax_themes` | Where custom syntax highlighting themes are stored        |
-| `default_favicon`      | The defualt favxicon used for files that don't supply one |
-| `process_html`         | If generated HTML should be processed (minimized, etc.)   |
+| Field                  | Description                                                               | Required? |
+| ---------------------- | ------------------------------------------------------------------------- | --------- |
+| `source`               | Where Markdown source files are stored                                    | Yes       |
+| `dest`                 | Where generated HTML files are stored                                     | Yes       |
+| `syntaxes`             | Where additional syntax highliting files are stored                       | Yes       |
+| `syntax_theme`         | The syntax highlighting theme to use                                      | Yes       |
+| `custom_syntax_themes` | Where custom syntax highlighting themes are stored                        | Yes       |
+| `default_favicon`      | The defualt favicon used for files that don't supply one                  | Yes       |
+| `default_style`        | The default CSS stylesheet used for files that don't specify one          | Yes       |
+| `default_template`     | The default HTML template used for files that don't specify one           | Yes       |
+| `process_html`         | If generated HTML should be processed (minimized, etc.)                   | Yes       |
+| `template_source_html` | Wether to allow usage of templating in HTML files in the source directory | No        |
 
 The defualt syntax themes are as follows:
 - `base16-ocean.dark`
@@ -147,20 +154,25 @@ In each markdown file a code block with the language specifier `pageinfo` is req
 ```pageinfo
 title = "Hello, World"
 description = "Greet the world"
-style = "style.css"
-template = "template.html"
 
 # optional
+style = "style.css"
+template = "template.html"
 favicon = favicon.ico
 ```
 ````
 
-The first two items here are self-explainatory. `style` is the stylesheet to be embeded into the HTML document.
-It's path is relative to the `raven.toml` at the root of the project, the same thing is true in regard to the `template` and `favicon` keys.
-`template` is the HTML template to embed the generated HTML into, each document can use whichever template that is available.
-`favicon` is optional: if it's omitted, or the file isn't found, then the generated HTML doesn't have a favicon.
-The favicon is encoded in base64 and stored using a data url in the generated HTML.
-The favicon is not copied to the configured destination directory.
+| Field         | Description                                           | Required |
+| ------------- | ----------------------------------------------------- | -------- |
+| `title`       | The title of the page                                 | Yes      |
+| `description` | The description of the page                           | Yes      |
+| `style`       | The CSS stylesheet to use. This overrides the default | No       |
+| `template`    | The HTML template to use. This overrides the default  | No       |
+| `favicon`     | The favicon image to use for the page                 | No       |
+
+The favicon and stylesheet are embeded into the HTML document.
+The favicon is encoded in base64 and stored using a data url in the generated HTML, it is not copied to the destination directory.
+The paths for all the fields are relative to the `raven.toml` at the root of the project.
 
 ### Considerations
 

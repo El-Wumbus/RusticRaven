@@ -35,8 +35,17 @@ pub struct Config
     /// The default favicon for webpages.
     pub default_favicon: PathBuf,
 
+    /// The default css stylesheet for webpages.
+    pub default_style: PathBuf,
+
+    /// The default HTML template for webpages.
+    pub default_template: PathBuf,
+
     /// If generated HTML should be processed (minimized, etc.)
     pub process_html: bool,
+
+    /// Treat html found in the source directory as a template
+    pub template_source_html: Option<bool>,
 }
 
 impl Default for Config
@@ -51,6 +60,9 @@ impl Default for Config
             syntax_theme:         String::from(Self::DEFAULT_SYNTAX_THEME),
             default_favicon:      PathBuf::from(Self::DEFAULT_FAVICON_FILE),
             custom_syntax_themes: PathBuf::from(Self::DEFAULT_CUSTOM_SYNTAX_THEMES_DIR),
+            template_source_html: None,
+            default_style:        PathBuf::from(Self::DEFUALT_STYLE_FILE),
+            default_template:     PathBuf::from(Self::DEFAULT_TEMPLATE_FILE),
         }
     }
 }
@@ -65,6 +77,8 @@ impl Config
     const DEFAULT_SRC_DIR: &str = "src";
     const DEFAULT_SYNTAXES_DIR: &str = "syntaxes";
     const DEFAULT_SYNTAX_THEME: &str = "base16-eighties.dark";
+    const DEFAULT_TEMPLATE_FILE: &str = "template.html";
+    const DEFUALT_STYLE_FILE: &str = "style.css";
 
     pub fn from_toml(path: &PathBuf) -> Result<Self>
     {
