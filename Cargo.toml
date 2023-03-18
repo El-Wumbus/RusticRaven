@@ -28,3 +28,10 @@ indicatif = { version = "0.17.3", features = ["tokio"] }
 [[bin]]
 name = "raven"
 path = "src/main.rs"
+
+[dev-dependencies]
+criterion = {version = "0.4", features = ["async_tokio"]}
+
+[[bench]]
+name = "benchmark"
+harness = false

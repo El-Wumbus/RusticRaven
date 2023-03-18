@@ -84,6 +84,9 @@ pub enum Error
         crate::NAME
     )]
     AysncJoin,
+
+    #[error("[{}] IntegraionIntoTemplateError", crate::NAME)]
+    IntegraionIntoTemplate,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

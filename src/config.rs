@@ -7,10 +7,10 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config
 {
-    /// Where Markdown source files are stored
+    /// Markdown source files
     pub source: PathBuf,
 
-    /// Where generated HTML files are stored
+    /// Where generated HTML files
     pub dest: PathBuf,
 
     /// Where sublime syntax highliting files are stored
