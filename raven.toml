@@ -1,7 +1,14 @@
 source = "src"
 dest = "docs"
 syntaxes = "syntaxes"
-syntax_theme = "gruvbox"
+syntax_theme = "base16-eighties.dark"
 custom_syntax_themes = "syntax-themes"
-default_favicon = "favicon.ico"
-process_html = true
+
+[default]
+favicon = "favicon.ico"
+stylesheet = "style.css"
+template = "template.html"
+
+[generation]
+process = { minify = true }
+treat_source_as_template = true
