@@ -1,3 +1,8 @@
-/target
-/*.snap
-/tmp
+/*
+!/docs
+!/src/
+!/syntax-themes
+!/syntaxes
+!/raven.toml
+!/style.css
+!/template.html
