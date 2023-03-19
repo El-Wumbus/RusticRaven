@@ -46,11 +46,11 @@ fn benchmark_integrate_html_into_template(c: &mut Criterion)
         .unwrap();
     let stylesheet = match page_info.style.clone() {
         Some(x) => x,
-        None => config.default_style.clone(),
+        None => config.default.stylesheet.clone(),
     };
     let template = match page_info.template.clone() {
         Some(x) => x,
-        None => config.default_template,
+        None => config.default.template,
     };
     std::fs::write(stylesheet, defaults::DEFAULT_CSS_STYLESHEET_SRC).unwrap();
     std::fs::write(template, defaults::DEFAULT_HTML_TEMPLATE_SRC).unwrap();

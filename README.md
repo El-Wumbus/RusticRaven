@@ -113,27 +113,32 @@ dest = "dest"
 syntaxes = "syntaxes"
 syntax_theme = "base16-eighties.dark"
 custom_syntax_themes = "syntax-themes"
-default_favicon = "favicon.ico"
-default_style = "style.css"
-default_template = "template.html"
-process_html = true
 
-# Optional
-template_source_html = true
+[default]
+favicon = "favicon.ico"
+stylesheet = "style.css"
+template = "template.html"
+
+[generation]
+process = { minify = true }
+treat_source_as_template = true
 ```
 
-| Field                  | Description                                                               | Required? |
-| ---------------------- | ------------------------------------------------------------------------- | --------- |
-| `source`               | Where Markdown source files are stored                                    | Yes       |
-| `dest`                 | Where generated HTML files are stored                                     | Yes       |
-| `syntaxes`             | Where additional syntax highliting files are stored                       | Yes       |
-| `syntax_theme`         | The syntax highlighting theme to use                                      | Yes       |
-| `custom_syntax_themes` | Where custom syntax highlighting themes are stored                        | Yes       |
-| `default_favicon`      | The defualt favicon used for files that don't supply one                  | Yes       |
-| `default_style`        | The default CSS stylesheet used for files that don't specify one          | Yes       |
-| `default_template`     | The default HTML template used for files that don't specify one           | Yes       |
-| `process_html`         | If generated HTML should be processed (minimized, etc.)                   | Yes       |
-| `template_source_html` | Wether to allow usage of templating in HTML files in the source directory | No        |
+| Field                                 | Type          | Description                                                               | Required? |
+| ------------------------------------- | ------------- | ------------------------------------------------------------------------- | --------- |
+| `source`                              | Path (String) | Where Markdown source files are stored                                    | Yes       |
+| `dest`                                | Path (String) | Where generated HTML files are stored                                     | Yes       |
+| `syntaxes`                            | Path (String) | Where additional syntax highliting files are stored                       | Yes       |
+| `custom_syntax_themes`                | Path (String) | Where custom syntax highlighting themes are stored                        | Yes       |
+| `syntax_theme`                        | String        | The syntax highlighting theme to use                                      | Yes       |
+| `default`                             | Table         | Default values that can be overridden in indviviual files                 | Yes       |
+| `default.favicon`                     | Path (String) | The defualt favicon used for files that don't supply one                  | Yes       |
+| `default.stylesheet`                  | Path (String) | The default CSS stylesheet used for files that don't specify one          | Yes       |
+| `default.template`                    | Path (String) | The default HTML template used for files that don't specify one           | Yes       |
+| `generation`                          | Table         | Settings related to HTML generation                                       | No        |
+| `generation.process`                  | Table         | Settings related to proccessing generated HTML                            | No        |
+| `generation.process.minify`           | Boolean       | Wether generated HTML should be processed (minimized, etc.)               | Yes       |
+| `generation.treat_source_as_template` | Boolean       | Wether to allow usage of templating in HTML files in the source directory | No        |
 
 The defualt syntax themes are as follows:
 - `base16-ocean.dark`
@@ -144,7 +149,7 @@ The defualt syntax themes are as follows:
 - `Solarized (dark)`
 - `Solarized (light)`
 
-To add a custom syntax theme, add a sublime-syntax file (e.g. `TOML.sublime-syntax`) into the `syntaxes` directory. This file describes what to use in the markdown (what comes after the `` ``` ``).
+To add a custom syntax theme, add a sublime-syntax file (e.g. `TOML.sublime-syntax`) into the `syntaxes` directory. This file describes what to use in the code block language names(what comes after the `` ``` ``).
 
 #### Page Info
 

@@ -207,18 +207,6 @@ pub fn get_syntaxes(
     Ok((syntax_set_builder, themes))
 }
 
-fn post_process_html(html: String) -> Result<String>
-{
-    // Create a byte vector containing the html. We feed this into an html minifier,
-    // then reconstruct a string from it.
-    let mut html: Vec<u8> = html.as_bytes().to_vec();
-    let mut cfg = minify_html::Cfg::new();
-    cfg.minify_css = true;
-    cfg.ensure_spec_compliant_unquoted_attribute_values = true;
-    html = minify_html::minify(&html, &cfg);
-    let html = String::from_utf8_lossy(&html);
-    Ok(html.to_string())
-}
 
 pub struct Website
 {
@@ -331,6 +319,21 @@ impl Website
         Ok((html_out, page_info))
     }
 
+    fn post_process_html(&self, mut html: String) -> Result<String>
+    {
+        // Only minify if config.generation.process.minify == true
+
+        // Create a byte vector containing the html. We feed this into an html minifier,
+        // then reconstruct a string from it.
+        let mut html_b: Vec<u8> = html.as_bytes().to_vec();
+        let mut cfg = minify_html::Cfg::new();
+        cfg.minify_css = true;
+        cfg.ensure_spec_compliant_unquoted_attribute_values = true;
+        html_b = minify_html::minify(&html_b, &cfg);
+        html = String::from_utf8_lossy(&html_b).to_string();
+        Ok(html)
+    }
+
     async fn get_stylesheet(&self, stylesheet: PathBuf) -> Result<String>
     {
         // Read the stylesheet and wrap it in html
@@ -413,10 +416,20 @@ impl Website
 
                 // Perform final actions on html
                 if source_file_extention != "css" {
-                    let stylesheet = self.get_stylesheet(config.default_style.clone()).await?;
-                    let favicon = self.get_favicon(config.default_favicon.clone()).await?;
-                    apply_to_template(&mut contents, None, None, favicon, stylesheet);
-                    contents = post_process_html(contents)?;
+                    if let Some(generation) = &config.generation {
+                        if generation.treat_source_as_template.unwrap_or(false) {
+                            let stylesheet = self.get_stylesheet(config.default.stylesheet.clone()).await?;
+                            let favicon = self.get_favicon(config.default.favicon.clone()).await?;
+                            apply_to_template(&mut contents, None, None, favicon, stylesheet);
+                        }
+                        if let Some(process_config) = &generation.process {
+                            if process_config.minify {
+                                contents = self.post_process_html(contents)?;
+                            }
+                        }
+                    }
+                }
+                else {
                 }
 
                 let dest_file = dest_dir.join(source_file.file_name().unwrap());
@@ -464,8 +477,14 @@ impl Website
             })?;
         }
 
-        // Perform final actions on html
-        let html = post_process_html(html)?;
+
+        if let Some(generation) = &config.generation {
+            if let Some(process_config) = &generation.process {
+                if process_config.minify {
+                    html = self.post_process_html(html)?;
+                }
+            }
+        }
 
         // Write out the file
         Error::unwrap_gracefully(fs::write(&dest_file, html).await.map_err(|e| {
@@ -489,11 +508,11 @@ impl Website
         let config = &self.config;
         let stylesheet = match page_info.style.clone() {
             Some(x) => x,
-            None => config.default_style.clone(),
+            None => config.default.stylesheet.clone(),
         };
         let template = match page_info.template.clone() {
             Some(x) => x,
-            None => config.default_template.clone(),
+            None => config.default.template.clone(),
         };
         // If the template file doesn't exist, skip this file
         if !template.is_file() {
@@ -509,7 +528,7 @@ impl Website
         let favicon_path = page_info
             .favicon
             .clone()
-            .unwrap_or(PathBuf::from(&config.default_favicon));
+            .unwrap_or(PathBuf::from(&config.default.favicon));
         let favicon_path = favicon_path.canonicalize().unwrap_or(favicon_path);
         let favicon = self.get_favicon(favicon_path).await?;
         let stylesheet = self.get_stylesheet(stylesheet).await?;

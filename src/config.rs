@@ -1,51 +1,61 @@
 use std::{fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
+use structstruck::strike;
 
 use crate::{Error, Result};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Config
-{
-    /// Markdown source files
-    pub source: PathBuf,
 
-    /// Where generated HTML files
-    pub dest: PathBuf,
+strike! {
+    #[strikethrough[derive(Debug, Clone, Deserialize, Serialize)]]
+    pub struct Config
+    {
+        /// Markdown source files
+        pub source: PathBuf,
 
-    /// Where sublime syntax highliting files are stored
-    pub syntaxes: PathBuf,
+        /// Where generated HTML files
+        pub dest: PathBuf,
 
-    /// One of the following themes:
-    ///
-    /// `base16-ocean.dark`  
-    /// `base16-eighties.dark`  
-    /// `base16-mocha.dark`  
-    /// `base16-ocean.light`  
-    /// `InspiredGitHub`  
-    /// `Solarized (dark)`  
-    /// `Solarized (light)`  
-    ///
-    /// Or one found in the `custom_syntax_themes` dir.
-    pub syntax_theme: String,
+        /// Where sublime syntax highliting files are stored
+        pub syntaxes: PathBuf,
 
-    /// Where `.tmTheme` color shemes are stored
-    pub custom_syntax_themes: PathBuf,
+        /// One of the following themes:
+        ///
+        /// `base16-ocean.dark`
+        /// `base16-eighties.dark`
+        /// `base16-mocha.dark`
+        /// `base16-ocean.light`
+        /// `InspiredGitHub`
+        /// `Solarized (dark)`
+        /// `Solarized (light)`
+        ///
+        /// Or one found in the `custom_syntax_themes` dir.
+        pub syntax_theme: String,
 
-    /// The default favicon for webpages.
-    pub default_favicon: PathBuf,
+        /// Where `.tmTheme` color shemes are stored
+        pub custom_syntax_themes: PathBuf,
 
-    /// The default css stylesheet for webpages.
-    pub default_style: PathBuf,
+        pub default: pub struct Defaults {
+            /// The default favicon for webpages.
+            pub favicon: PathBuf,
 
-    /// The default HTML template for webpages.
-    pub default_template: PathBuf,
+            /// The default css stylesheet for webpages.
+            pub stylesheet: PathBuf,
 
-    /// If generated HTML should be processed (minimized, etc.)
-    pub process_html: bool,
+            /// The default HTML template for webpages.
+            pub template: PathBuf,
+        },
 
-    /// Treat html found in the source directory as a template
-    pub template_source_html: Option<bool>,
+        pub generation: Option<pub struct Generation {
+            /// If generated HTML should be processed (minimized, etc.)
+            pub process: Option<pub struct ProcessHtml {
+                pub minify: bool,
+            }>,
+
+            /// Treat html found in the source directory as a template
+            pub treat_source_as_template: Option<bool>,
+        }>,
+    }
 }
 
 impl Default for Config
@@ -56,13 +66,14 @@ impl Default for Config
             dest:                 PathBuf::from(Self::DEFAULT_DEST_DIR),
             source:               PathBuf::from(Self::DEFAULT_SRC_DIR),
             syntaxes:             PathBuf::from(Self::DEFAULT_SYNTAXES_DIR),
-            process_html:         Self::DEFAULT_PROCESS_HTML,
             syntax_theme:         String::from(Self::DEFAULT_SYNTAX_THEME),
-            default_favicon:      PathBuf::from(Self::DEFAULT_FAVICON_FILE),
             custom_syntax_themes: PathBuf::from(Self::DEFAULT_CUSTOM_SYNTAX_THEMES_DIR),
-            template_source_html: None,
-            default_style:        PathBuf::from(Self::DEFUALT_STYLE_FILE),
-            default_template:     PathBuf::from(Self::DEFAULT_TEMPLATE_FILE),
+            generation:           None,
+            default:              Defaults {
+                favicon:    PathBuf::from(Self::DEFAULT_FAVICON_FILE),
+                stylesheet: PathBuf::from(Self::DEFUALT_STYLE_FILE),
+                template:   PathBuf::from(Self::DEFAULT_TEMPLATE_FILE),
+            },
         }
     }
 }
@@ -73,7 +84,6 @@ impl Config
     const DEFAULT_CUSTOM_SYNTAX_THEMES_DIR: &str = "syntax-themes";
     const DEFAULT_DEST_DIR: &str = "dest";
     const DEFAULT_FAVICON_FILE: &str = "favicon.ico";
-    const DEFAULT_PROCESS_HTML: bool = true;
     const DEFAULT_SRC_DIR: &str = "src";
     const DEFAULT_SYNTAXES_DIR: &str = "syntaxes";
     const DEFAULT_SYNTAX_THEME: &str = "base16-eighties.dark";

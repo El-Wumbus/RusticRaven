@@ -24,6 +24,7 @@ toml = "0.7.3"
 walkdir = "2.3.2"
 dashmap = "5.4.0"
 indicatif = { version = "0.17.3", features = ["tokio"] }
+structstruck = "0.4.0"
 
 [[bin]]
 name = "raven"
