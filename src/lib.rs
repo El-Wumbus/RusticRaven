@@ -23,10 +23,10 @@ pub struct PageInfo
     pub description: String,
 
     /// The CSS stylesheet to use.
-    pub style: PathBuf,
+    pub style: Option<PathBuf>,
 
     /// The path to the HTML template to use.
-    pub template: PathBuf,
+    pub template: Option<PathBuf>,
 
     /// Use a different favicon for this page. If omitted the defualt one will
     /// be used.

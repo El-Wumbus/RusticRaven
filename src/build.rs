@@ -331,6 +331,53 @@ impl Website
         Ok((html_out, page_info))
     }
 
+    async fn get_stylesheet(&self, stylesheet: PathBuf) -> Result<String>
+    {
+        // Read the stylesheet and wrap it in html
+        let stylesheet_path = stylesheet.canonicalize().unwrap_or(stylesheet);
+        let stylesheet = if let Some(contents) = self.assets.get(&stylesheet_path) {
+            contents.clone()
+        }
+        else {
+            let stylesheet = format!(
+                "<style>{}</style>",
+                fs::read_to_string(&stylesheet_path).await.map_err(|e| {
+                    Error::Io {
+                        err:  e,
+                        path: stylesheet_path.clone(),
+                    }
+                })?
+            );
+            self.assets.insert(stylesheet_path, stylesheet.clone());
+            stylesheet
+        };
+        Ok(stylesheet)
+    }
+
+    async fn get_favicon(&self, favicon: PathBuf) -> Result<String>
+    {
+        let favicon_path = favicon.canonicalize().unwrap_or(favicon);
+        let favicon_encoded = if let Some(contents) = self.assets.get(&favicon_path) {
+            contents.clone()
+        }
+        else {
+            // If the favicon isn't found then one isn't inserted.
+            let encoded = if favicon_path.is_file() {
+                let b64 = read_to_base64_string(favicon_path.clone()).await?;
+                // Base64 encode the favicon and wrap it in the icon HTML
+                format!("<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{b64}\">",)
+            }
+            else {
+                String::new()
+            };
+
+            self.assets.insert(favicon_path, encoded.clone());
+            encoded
+        };
+
+        Ok(favicon_encoded)
+    }
+
     pub async fn make_html_from_md(
         &self,
         source_file: (PathBuf, String),
@@ -352,28 +399,31 @@ impl Website
             .skip_while(|x| *x != here.file_name().unwrap())
             .skip(2)
             .collect::<PathBuf>();
-        let dest_path = config
-            .dest
-            .join(source_path_stem.parent().unwrap_or(&source_path_stem))
-            .join(format!("{}.html", source_file_name.to_string_lossy()));
+        let dest_dir = config.dest.join(source_path_stem.parent().unwrap_or(&source_path_stem));
 
         match &*source_file_extention {
             "md" | "markdown" => (),
-            "html" | "htm" => {
-                let html = fs::read_to_string(&source_file).await.map_err(|e| {
+            "css" | "html" | "htm" => {
+                let mut contents = fs::read_to_string(&source_file).await.map_err(|e| {
                     Error::Io {
                         err:  e,
-                        path: source_file,
+                        path: source_file.clone(),
                     }
                 })?;
 
                 // Perform final actions on html
-                let html = post_process_html(html)?;
+                if source_file_extention != "css" {
+                    let stylesheet = self.get_stylesheet(config.default_style.clone()).await?;
+                    let favicon = self.get_favicon(config.default_favicon.clone()).await?;
+                    apply_to_template(&mut contents, None, None, favicon, stylesheet);
+                    contents = post_process_html(contents)?;
+                }
 
-                fs::write(&dest_path, html).await.map_err(|e| {
+                let dest_file = dest_dir.join(source_file.file_name().unwrap());
+                fs::write(&dest_file, contents).await.map_err(|e| {
                     Error::Io {
                         err:  e,
-                        path: dest_path,
+                        path: dest_file,
                     }
                 })?;
 
@@ -382,9 +432,11 @@ impl Website
             _ => return Ok(()),
         }
 
+        let dest_file = dest_dir.join(format!("{}.html", source_file_name.to_string_lossy()));
+
         // If the destination exists, and the source is more recent'ly modified than the
         // destination, then we skip generating this file.
-        if !rebuild_all && !should_regenerate_file(&source_file, &dest_path)? {
+        if !rebuild_all && !should_regenerate_file(&source_file, &dest_file)? {
             return Ok(());
         }
 
@@ -402,7 +454,7 @@ impl Website
         };
 
         // Create the parent dir in the destination path
-        let dest_path_parent = dest_path.parent().unwrap_or(&dest_path);
+        let dest_path_parent = dest_file.parent().unwrap_or(&dest_file);
         if !dest_path_parent.exists() {
             fs::create_dir_all(dest_path_parent).await.map_err(|e| {
                 Error::Io {
@@ -416,10 +468,10 @@ impl Website
         let html = post_process_html(html)?;
 
         // Write out the file
-        Error::unwrap_gracefully(fs::write(&dest_path, html).await.map_err(|e| {
+        Error::unwrap_gracefully(fs::write(&dest_file, html).await.map_err(|e| {
             Error::Io {
                 err:  e,
-                path: dest_path,
+                path: dest_file,
             }
         }));
 
@@ -434,77 +486,67 @@ impl Website
         html: String,
     ) -> Result<String>
     {
-        let assets = self.assets.clone();
         let config = &self.config;
-        let stylesheet = page_info.style;
-
+        let stylesheet = match page_info.style.clone() {
+            Some(x) => x,
+            None => config.default_style.clone(),
+        };
+        let template = match page_info.template.clone() {
+            Some(x) => x,
+            None => config.default_template.clone(),
+        };
         // If the template file doesn't exist, skip this file
-        if !page_info.template.is_file() {
+        if !template.is_file() {
             Error::MissingTemplate {
                 source_file,
-                expected_template_file: page_info.template,
+                expected_template_file: template,
             }
             .report();
             return Err(Error::IntegraionIntoTemplate);
         }
 
         // Get the favicon file path
-        let favicon_path = page_info.favicon.unwrap_or(PathBuf::from(&config.default_favicon));
+        let favicon_path = page_info
+            .favicon
+            .clone()
+            .unwrap_or(PathBuf::from(&config.default_favicon));
         let favicon_path = favicon_path.canonicalize().unwrap_or(favicon_path);
-        let favicon_encoded = if let Some(contents) = assets.get(&favicon_path) {
-            contents.clone()
-        }
-        else {
-            // If the favicon isn't found then one isn't inserted.
-            let b64 = if favicon_path.is_file() {
-                read_to_base64_string(favicon_path.clone()).await?
-            }
-            else {
-                String::new()
-            };
-            // Base64 encode the favicon and wrap it in the icon HTML
-            let encoded = format!("<link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64,{b64}\">",);
-
-            assets.insert(favicon_path, encoded.clone());
-            encoded
-        };
-
-
-        // Read the stylesheet and wrap it in html
-        let stylesheet_path = stylesheet.canonicalize().unwrap_or(stylesheet);
-        let stylesheet = if let Some(contents) = assets.get(&stylesheet_path) {
-            contents.clone()
-        }
-        else {
-            let stylesheet = format!(
-                "<style>{}</style>",
-                fs::read_to_string(&stylesheet_path).await.map_err(|e| {
-                    Error::Io {
-                        err:  e,
-                        path: stylesheet_path.clone(),
-                    }
-                })?
-            );
-
-            assets.insert(stylesheet_path, stylesheet.clone());
-            stylesheet
-        };
+        let favicon = self.get_favicon(favicon_path).await?;
+        let stylesheet = self.get_stylesheet(stylesheet).await?;
 
         // Add the markdown html into the template html, then write it out.
-        let html = Error::unwrap_gracefully(fs::read_to_string(&page_info.template).await.map_err(|e| {
+        let mut template = Error::unwrap_gracefully(fs::read_to_string(&template).await.map_err(|e| {
             Error::Io {
                 err:  e,
-                path: page_info.template.clone(),
+                path: template.clone(),
             }
-        }))
-        .replace(TEMPLATE_NAME_BODY, &html)
-        .replace(TEMPLATE_NAME_TITLE, &page_info.title)
-        .replace(TEMPLATE_NAME_DESC, &page_info.description)
-        .replace(TEMPLATE_NAME_FAVICON, &favicon_encoded)
-        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
+        }));
 
-        Ok(html)
+        apply_to_template(&mut template, Some(html), Some(page_info), favicon, stylesheet);
+        Ok(template)
     }
+}
+
+
+fn apply_to_template(
+    template: &mut String,
+    html: Option<String>,
+    page_info: Option<PageInfo>,
+    favicon: String,
+    stylesheet: String,
+)
+{
+    if let Some(html) = html {
+        *template = template.replace(TEMPLATE_NAME_BODY, html.as_ref());
+    }
+    if let Some(page_info) = page_info {
+        *template = template
+            .replace(TEMPLATE_NAME_TITLE, &page_info.title)
+            .replace(TEMPLATE_NAME_DESC, &page_info.description);
+    }
+    *template = template
+        .replace(TEMPLATE_NAME_FAVICON, &favicon)
+        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
 }
 
 #[cfg(test)]
