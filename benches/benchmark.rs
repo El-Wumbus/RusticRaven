@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 // This is a struct that tells Criterion.rs to use the "futures" crate's current-thread executor
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use dashmap::DashMap;
-use rustic_raven::{build::Website, *};
+use rustic_raven::{build::Website, defaults, Config};
 use syntect::{highlighting, parsing::SyntaxSet};
 
 fn benchmark_parse_markdown(c: &mut Criterion)
@@ -24,9 +24,8 @@ fn benchmark_parse_markdown(c: &mut Criterion)
         .significance_level(0.08);
     group.bench_function("html_from_markdown DEFAULT_MD_BENCHMARK_SRC", |b| {
         b.iter(|| {
-            site.parse_markdown(black_box(markdown.to_string()), PathBuf::new())
-                .unwrap();
-        })
+            site.parse_markdown(black_box(markdown), PathBuf::new()).unwrap();
+        });
     });
     group.finish();
 }
@@ -41,9 +40,7 @@ fn benchmark_integrate_html_into_template(c: &mut Criterion)
     let assets: Arc<DashMap<PathBuf, String>> = Arc::new(DashMap::new());
     let site = Website::new(config.clone(), SyntaxSet::load_defaults_newlines(), assets, theme);
     let markdown = DEFAULT_MD_BENCHMARK_SRC;
-    let (html, page_info) = site
-        .parse_markdown(black_box(markdown.to_string()), PathBuf::new())
-        .unwrap();
+    let (html, page_info) = site.parse_markdown(black_box(markdown), PathBuf::new()).unwrap();
     let stylesheet = match page_info.style.clone() {
         Some(x) => x,
         None => config.default.stylesheet.clone(),

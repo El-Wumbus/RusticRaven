@@ -90,6 +90,14 @@ impl Config
     const DEFAULT_TEMPLATE_FILE: &str = "template.html";
     const DEFUALT_STYLE_FILE: &str = "style.css";
 
+    /// Constructs a `Config` from a TOML file provided (`path`).
+    ///
+    /// # Errors
+    ///
+    /// Will return an error if:
+    ///
+    /// - The `path` cannot be read into a string
+    /// - The TOML read from `path` cannot be parsed into a `Config`
     pub fn from_toml(path: &PathBuf) -> Result<Self>
     {
         let contents = match fs::read_to_string(path) {
