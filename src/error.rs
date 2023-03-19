@@ -87,6 +87,9 @@ pub enum Error
 
     #[error("[{}] IntegraionIntoTemplateError", crate::NAME)]
     IntegraionIntoTemplate,
+
+    #[error("[{}] ProgressBarInitializationError", crate::NAME)]
+    ProgressBarInitialization,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

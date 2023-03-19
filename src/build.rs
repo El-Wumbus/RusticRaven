@@ -9,7 +9,7 @@ use syntect::{highlighting, parsing::SyntaxSet};
 use tokio::fs;
 use walkdir::WalkDir;
 
-use crate::*;
+use crate::{Config, Error, PageInfo, Path, PathBuf, Result};
 
 const TEMPLATE_NAME_BODY: &str = "[/rustic_body/]";
 const TEMPLATE_NAME_TITLE: &str = "[/rustic_title/]";
@@ -30,6 +30,19 @@ async fn read_to_base64_string(path: PathBuf) -> Result<String>
     Ok(engine::general_purpose::STANDARD_NO_PAD.encode(image))
 }
 
+/// # Errors
+///
+/// Will return errors if:
+///
+/// - There are no source files
+/// - Progress bar initialization fails
+///
+/// # Panics
+///
+/// Will panic if:
+///
+/// - Markdown to html conversion fails
+/// - Couldn't join a thread
 pub async fn build(site: Website, rebuild_all: bool) -> Result<()>
 {
     use indicatif::ProgressBar;
@@ -47,7 +60,7 @@ pub async fn build(site: Website, rebuild_all: bool) -> Result<()>
     pb.set_style(
         ProgressStyle::default_bar()
             .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({percent}%) {msg}")
-            .unwrap()
+            .map_err(|_| Error::ProgressBarInitialization)?
             .progress_chars("#>-"),
     );
 
@@ -120,6 +133,12 @@ fn walk_directory(path: &Path) -> Vec<(PathBuf, String)>
     contents
 }
 
+/// # Errors
+///
+/// Will returns errors if:
+///
+/// - `source` path doesn't exist
+/// - `dest` path doesn't exist
 fn should_regenerate_file(source: &Path, dest: &Path) -> Result<bool>
 {
     if dest.exists() {
@@ -147,6 +166,12 @@ fn should_regenerate_file(source: &Path, dest: &Path) -> Result<bool>
     Ok(true)
 }
 
+/// # Errors
+///
+/// Will error if:
+///
+/// - Syntax folder cannot be loaded from
+/// - Syntax themes folder cannot be loaded from
 pub fn get_syntaxes(
     config: &Config,
 ) -> Result<(
@@ -160,13 +185,10 @@ pub fn get_syntaxes(
     let mut syntax_set_builder = SyntaxSet::load_defaults_newlines().into_builder();
     if syntax_dir.is_dir() {
         syntax_set_builder.add_from_folder(syntax_dir, true).map_err(|e| {
-            let e = Error::LoadSyntax {
-                path: syntax_dir.to_path_buf(),
+            Error::LoadSyntax {
+                path: syntax_dir.clone(),
                 err:  e.to_string(),
-            };
-
-            // Report the error and exit if this fails
-            e.report_and_exit()
+            }
         })?;
     }
 
@@ -178,7 +200,6 @@ pub fn get_syntaxes(
                     err:  e.to_string(),
                     path: custom_syntax_themes_dir.clone(),
                 }
-                .report_and_exit()
             })?;
 
 
@@ -189,7 +210,6 @@ pub fn get_syntaxes(
                     err:  e.to_string(),
                     path: custom_syntax_themes_dir.clone(),
                 }
-                .report_and_exit()
             })?;
 
             let name = theme.name.clone().unwrap_or(
@@ -238,7 +258,14 @@ impl Website
     }
 
     /// Parse a markdown source into html and the contained `PageInfo`
-    pub fn parse_markdown(&self, source: String, source_path: PathBuf) -> Result<(String, PageInfo)>
+    ///
+    /// # Errors
+    ///
+    /// Will return an error if:
+    ///
+    /// - Syntax highligting fails
+    /// - `PageInfo` isn't parsable or is missing.
+    pub fn parse_markdown(&self, source: &str, source_path: PathBuf) -> Result<(String, PageInfo)>
     {
         use pulldown_cmark::{html, Options, Parser, Tag};
 
@@ -249,7 +276,7 @@ impl Website
         options.insert(Options::ENABLE_TABLES);
         options.insert(Options::ENABLE_TASKLISTS);
 
-        let parser = Parser::new_ext(&source, options);
+        let parser = Parser::new_ext(source, options);
 
         let mut html_out = String::new();
         let mut current_language = None;
@@ -296,7 +323,7 @@ impl Website
                             };
 
                             // Change the event to an html event
-                            event = Event::Html(highlighted_html.into())
+                            event = Event::Html(highlighted_html.into());
                         }
                     }
                 }
@@ -317,21 +344,6 @@ impl Website
             }
         })?;
         Ok((html_out, page_info))
-    }
-
-    fn post_process_html(&self, mut html: String) -> Result<String>
-    {
-        // Only minify if config.generation.process.minify == true
-
-        // Create a byte vector containing the html. We feed this into an html minifier,
-        // then reconstruct a string from it.
-        let mut html_b: Vec<u8> = html.as_bytes().to_vec();
-        let mut cfg = minify_html::Cfg::new();
-        cfg.minify_css = true;
-        cfg.ensure_spec_compliant_unquoted_attribute_values = true;
-        html_b = minify_html::minify(&html_b, &cfg);
-        html = String::from_utf8_lossy(&html_b).to_string();
-        Ok(html)
     }
 
     async fn get_stylesheet(&self, stylesheet: PathBuf) -> Result<String>
@@ -381,6 +393,19 @@ impl Website
         Ok(favicon_encoded)
     }
 
+    /// # Errors
+    ///
+    /// Will return an error if
+    ///
+    /// - `./` cannot be canonicalized
+    /// - `source_file` cannot be read into a string
+    /// - The generated `dest_file` cannot be written to
+    ///
+    /// # Panics
+    ///
+    /// Will panic if:
+    ///
+    /// - `source_file`'s file stem cannot be extracted.
     pub async fn make_html_from_md(
         &self,
         source_file: (PathBuf, String),
@@ -420,16 +445,14 @@ impl Website
                         if generation.treat_source_as_template.unwrap_or(false) {
                             let stylesheet = self.get_stylesheet(config.default.stylesheet.clone()).await?;
                             let favicon = self.get_favicon(config.default.favicon.clone()).await?;
-                            apply_to_template(&mut contents, None, None, favicon, stylesheet);
+                            apply_to_template(&mut contents, None, None, &favicon, &stylesheet);
                         }
                         if let Some(process_config) = &generation.process {
                             if process_config.minify {
-                                contents = self.post_process_html(contents)?;
+                                contents = post_process_html(contents);
                             }
                         }
                     }
-                }
-                else {
                 }
 
                 let dest_file = dest_dir.join(source_file.file_name().unwrap());
@@ -460,7 +483,7 @@ impl Website
                 path: source_file.clone(),
             }
         })?;
-        let (mut html, page_info) = Error::unwrap_gracefully(self.parse_markdown(source, source_file.clone()));
+        let (mut html, page_info) = self.parse_markdown(&source, source_file.clone())?;
         html = match self.integrate_html_into_template(page_info, source_file, html).await {
             Ok(x) => x,
             Err(_) => return Ok(()),
@@ -481,23 +504,30 @@ impl Website
         if let Some(generation) = &config.generation {
             if let Some(process_config) = &generation.process {
                 if process_config.minify {
-                    html = self.post_process_html(html)?;
+                    html = post_process_html(html);
                 }
             }
         }
 
         // Write out the file
-        Error::unwrap_gracefully(fs::write(&dest_file, html).await.map_err(|e| {
+        fs::write(&dest_file, html).await.map_err(|e| {
             Error::Io {
                 err:  e,
                 path: dest_file,
             }
-        }));
+        })?;
 
         pb.inc(1);
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Will return errors if:
+    ///
+    /// - There is no template file
+    /// - The template file couldn't be read into a string
+    /// - Couldn't get a favicon/stylesheet
     pub async fn integrate_html_into_template(
         &self,
         page_info: PageInfo,
@@ -534,25 +564,39 @@ impl Website
         let stylesheet = self.get_stylesheet(stylesheet).await?;
 
         // Add the markdown html into the template html, then write it out.
-        let mut template = Error::unwrap_gracefully(fs::read_to_string(&template).await.map_err(|e| {
+        let mut template = fs::read_to_string(&template).await.map_err(|e| {
             Error::Io {
                 err:  e,
                 path: template.clone(),
             }
-        }));
+        })?;
 
-        apply_to_template(&mut template, Some(html), Some(page_info), favicon, stylesheet);
+        apply_to_template(&mut template, Some(html), Some(page_info), &favicon, &stylesheet);
         Ok(template)
     }
 }
 
+fn post_process_html(mut html: String) -> String
+{
+    // Only minify if config.generation.process.minify == true
+
+    // Create a byte vector containing the html. We feed this into an html minifier,
+    // then reconstruct a string from it.
+    let mut html_b: Vec<u8> = html.as_bytes().to_vec();
+    let mut cfg = minify_html::Cfg::new();
+    cfg.minify_css = true;
+    cfg.ensure_spec_compliant_unquoted_attribute_values = true;
+    html_b = minify_html::minify(&html_b, &cfg);
+    html = String::from_utf8_lossy(&html_b).to_string();
+    html
+}
 
 fn apply_to_template(
     template: &mut String,
     html: Option<String>,
     page_info: Option<PageInfo>,
-    favicon: String,
-    stylesheet: String,
+    favicon: &str,
+    stylesheet: &str,
 )
 {
     if let Some(html) = html {
@@ -564,8 +608,8 @@ fn apply_to_template(
             .replace(TEMPLATE_NAME_DESC, &page_info.description);
     }
     *template = template
-        .replace(TEMPLATE_NAME_FAVICON, &favicon)
-        .replace(TEMPLATE_NAME_STYLESHEET, &stylesheet);
+        .replace(TEMPLATE_NAME_FAVICON, favicon)
+        .replace(TEMPLATE_NAME_STYLESHEET, stylesheet);
 }
 
 #[cfg(test)]
@@ -596,7 +640,7 @@ template = "template.html"
 ```
 
 # Hello World :smile:"#;
-        let (html, _) = site.parse_markdown(markdown.to_string(), PathBuf::new()).unwrap();
+        let (html, _) = site.parse_markdown(markdown, PathBuf::new()).unwrap();
         assert!(html.contains('😄'));
     }
 
@@ -604,6 +648,14 @@ template = "template.html"
     /// Test that syntax-highligting works properly
     fn test_syntax_highliting_markdown_parsing()
     {
+        const EXPECTED_HTML: &str =
+            "<pre><code class=\"language-C\"><pre style=\"background-color:#2d2d2d;\">\n<span \
+             style=\"color:#cc99cc;\">int </span><span style=\"color:#6699cc;\">main</span><span \
+             style=\"color:#d3d0c8;\">()\n</span><span style=\"color:#d3d0c8;\">{\n</span><span \
+             style=\"color:#d3d0c8;\">    </span><span style=\"color:#cc99cc;\">return </span><span \
+             style=\"color:#f99157;\">0</span><span style=\"color:#d3d0c8;\">;\n</span><span \
+             style=\"color:#d3d0c8;\">}\n</span></pre>\n</code></pre>\n";
+
         let config = Config::default();
         let theme = highlighting::ThemeSet::load_defaults()
             .themes
@@ -626,15 +678,7 @@ int main()
 }
 ```
 "#;
-
-        const EXPECTED_HTML: &str =
-            "<pre><code class=\"language-C\"><pre style=\"background-color:#2d2d2d;\">\n<span \
-             style=\"color:#cc99cc;\">int </span><span style=\"color:#6699cc;\">main</span><span \
-             style=\"color:#d3d0c8;\">()\n</span><span style=\"color:#d3d0c8;\">{\n</span><span \
-             style=\"color:#d3d0c8;\">    </span><span style=\"color:#cc99cc;\">return </span><span \
-             style=\"color:#f99157;\">0</span><span style=\"color:#d3d0c8;\">;\n</span><span \
-             style=\"color:#d3d0c8;\">}\n</span></pre>\n</code></pre>\n";
-        let (html, _) = site.parse_markdown(markdown.to_string(), PathBuf::new()).unwrap();
+        let (html, _) = site.parse_markdown(markdown, PathBuf::new()).unwrap();
         assert_eq!(&html, EXPECTED_HTML);
     }
 

@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use build::*;
+use build::{build, get_syntaxes, Website};
 use dashmap::DashMap;
 use indicatif::{ProgressIterator, ProgressStyle};
 pub use rustic_raven::*;
@@ -92,7 +92,7 @@ async fn main() -> error::Result<()>
         Options::Init { directory } => {
             // Change directories into the specified directory.
             std::env::set_current_dir(directory).unwrap();
-            Error::unwrap_gracefully(init(Config::default()).await)
+            Error::unwrap_gracefully(init(Config::default()).await);
         }
         Options::Build {
             config_path,
@@ -112,12 +112,12 @@ async fn main() -> error::Result<()>
             // The changes are syncronized.
             let open_assets: Arc<DashMap<PathBuf, String>> = Arc::new(DashMap::new());
             let site = Website::new(config, syntax_set_builder.build(), open_assets, theme);
-            Error::unwrap_gracefully(build(site, *rebuild_all).await)
+            Error::unwrap_gracefully(build(site, *rebuild_all).await);
         }
         Options::Clean { directory, config_path } => {
             // Change directories into the specified directory.
             std::env::set_current_dir(directory).unwrap();
-            Error::unwrap_gracefully(clean(Error::unwrap_gracefully(Config::from_toml(config_path))).await)
+            Error::unwrap_gracefully(clean(Error::unwrap_gracefully(Config::from_toml(config_path))).await);
         }
         Options::New {
             name,
@@ -131,7 +131,7 @@ async fn main() -> error::Result<()>
             if let Err(e) = fs::create_dir_all(name).await {
                 Error::Io {
                     err:  e,
-                    path: name.to_path_buf(),
+                    path: name.clone(),
                 }
                 .report_and_exit()
             }
@@ -154,7 +154,7 @@ async fn main() -> error::Result<()>
             }
             // Change directories into the specified directory.
             std::env::set_current_dir(name).unwrap();
-            Error::unwrap_gracefully(init(config).await)
+            Error::unwrap_gracefully(init(config).await);
         }
     };
 
@@ -190,7 +190,7 @@ async fn clean(config: Config) -> Result<()>
         .into_iter()
         .filter_map(|x| {
             if let Ok(x) = x {
-                if x.path() != dest_dir {
+                if x.path() == dest_dir {
                     Some(x)
                 }
                 else {

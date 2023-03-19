@@ -39,6 +39,19 @@ impl PageInfo
 }
 
 /// Initialize a directiory with the defualt doodads
+///
+/// # Panics
+///
+/// Will panic if:
+///
+/// - TOML cannot be serialized from `Config`
+///
+/// # Errors
+///
+/// Will return an error if:
+///
+/// - A configuration file cannot be written to.
+/// - A directory or file cannot be made or written to.
 pub async fn init(config: Config) -> Result<()>
 {
     use std::io::Write;
@@ -50,7 +63,7 @@ pub async fn init(config: Config) -> Result<()>
         return Ok(());
     }
 
-    // Open a new conf file, we err if the file already exists
+    // Open a new conf file.
     let f = fs::File::create(&configuration_file_path).await.map_err(|e| {
         Error::Io {
             err:  e,
