@@ -166,8 +166,8 @@ favicon = favicon.ico
 | ------------- | ----------------------------------------------------- | -------- |
 | `title`       | The title of the page                                 | Yes      |
 | `description` | The description of the page                           | Yes      |
-| `style`       | The CSS stylesheet to use. This overrides the default | No       |
-| `template`    | The HTML template to use. This overrides the default  | No       |
+| `style`       | The CSS stylesheet to use, this overrides the default | No       |
+| `template`    | The HTML template to use, this overrides the default  | No       |
 | `favicon`     | The favicon image to use for the page                 | No       |
 
 The favicon and stylesheet are embeded into the HTML document.
@@ -180,4 +180,5 @@ The paths for all the fields are relative to the `raven.toml` at the root of the
 
 - Markdown files (`.md` or `.markdown`) in the configured source directory will be parsed and generated into HTML files in the configured destination directory.
 - HTML files (`.html` or `.htm`) in the configured source directory will be copied to the configured destination deirectory (after, if enabled, processing).
+- CSS file (`.css`) in the configured source directory will be copied to the configured destination directory.
 - Everything else in the configured source directory gets ignored.

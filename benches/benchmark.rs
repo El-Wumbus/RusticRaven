@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 // This is a struct that tells Criterion.rs to use the "futures" crate's current-thread executor
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
@@ -18,7 +18,10 @@ fn benchmark_parse_markdown(c: &mut Criterion)
     let markdown = DEFAULT_MD_BENCHMARK_SRC;
     let mut group = c.benchmark_group("throughput");
     group.throughput(criterion::Throughput::Bytes(markdown.bytes().len() as u64));
-
+    group
+        .sample_size(10_000)
+        .measurement_time(Duration::from_secs(15))
+        .significance_level(0.08);
     group.bench_function("html_from_markdown DEFAULT_MD_BENCHMARK_SRC", |b| {
         b.iter(|| {
             site.parse_markdown(black_box(markdown.to_string()), PathBuf::new())
@@ -47,14 +50,18 @@ fn benchmark_integrate_html_into_template(c: &mut Criterion)
     };
     let template = match page_info.template.clone() {
         Some(x) => x,
-        None => config.default_template.clone(),
+        None => config.default_template,
     };
-    std::fs::write(&stylesheet, defaults::DEFAULT_CSS_STYLESHEET_SRC).unwrap();
-    std::fs::write(&template, defaults::DEFAULT_HTML_TEMPLATE_SRC).unwrap();
+    std::fs::write(stylesheet, defaults::DEFAULT_CSS_STYLESHEET_SRC).unwrap();
+    std::fs::write(template, defaults::DEFAULT_HTML_TEMPLATE_SRC).unwrap();
 
     let exe = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("throughput");
     group.throughput(criterion::Throughput::Bytes(html.bytes().len() as u64));
+    group
+        .sample_size(10_000)
+        .measurement_time(Duration::from_secs(10))
+        .noise_threshold(0.13);
     group.bench_function("benchmark_integrate_html_into_template DEFAULT_MD_BENCHMARK_SRC", |b| {
         b.to_async(&exe)
             .iter(|| site.integrate_html_into_template(page_info.clone(), PathBuf::new(), html.clone()));
