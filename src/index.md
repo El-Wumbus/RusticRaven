@@ -108,37 +108,25 @@ To make a new project with the defualt configuration run the `init` subcommand.
 The default configuration looks similar to below:
 
 ```toml
+# raven.toml
+
 source = "src"
 dest = "dest"
 syntaxes = "syntaxes"
 syntax_theme = "base16-eighties.dark"
 custom_syntax_themes = "syntax-themes"
-
-[default]
-favicon = "favicon.ico"
-stylesheet = "style.css"
-template = "template.html"
-
-[generation]
-process = { minify = true }
-treat_source_as_template = true
+default_favicon = "favicon.png"
 ```
 
-| Field                                 | Type          | Description                                                               | Required? |
-| ------------------------------------- | ------------- | ------------------------------------------------------------------------- | --------- |
-| `source`                              | Path (String) | Where Markdown source files are stored                                    | Yes       |
-| `dest`                                | Path (String) | Where generated HTML files are stored                                     | Yes       |
-| `syntaxes`                            | Path (String) | Where additional syntax highliting files are stored                       | Yes       |
-| `custom_syntax_themes`                | Path (String) | Where custom syntax highlighting themes are stored                        | Yes       |
-| `syntax_theme`                        | String        | The syntax highlighting theme to use                                      | Yes       |
-| `default`                             | Table         | Default values that can be overridden in indviviual files                 | Yes       |
-| `default.favicon`                     | Path (String) | The defualt favicon used for files that don't supply one                  | Yes       |
-| `default.stylesheet`                  | Path (String) | The default CSS stylesheet used for files that don't specify one          | Yes       |
-| `default.template`                    | Path (String) | The default HTML template used for files that don't specify one           | Yes       |
-| `generation`                          | Table         | Settings related to HTML generation                                       | No        |
-| `generation.process`                  | Table         | Settings related to proccessing generated HTML                            | No        |
-| `generation.process.minify`           | Boolean       | Wether generated HTML should be processed (minimized, etc.)               | Yes       |
-| `generation.treat_source_as_template` | Boolean       | Wether to allow usage of templating in HTML files in the source directory | No        |
+| Name                   | Description                                               |
+| ---------------------- | --------------------------------------------------------- |
+| `source`               | Where Markdown source files are stored                    |
+| `dest`                 | Where generated HTML files are stored                     |
+| `syntaxes`             | Where additional syntax highliting files are stored       |
+| `syntax_theme`         | The syntax highlighting theme to use                      |
+| `custom_syntax_themes` | Where custom syntax highlighting themes are stored        |
+| `default_favicon`      | The defualt favxicon used for files that don't supply one |
+| `process_html`         | If generated HTML should be processed (minimized, etc.)   |
 
 The defualt syntax themes are as follows:
 - `base16-ocean.dark`
@@ -149,7 +137,7 @@ The defualt syntax themes are as follows:
 - `Solarized (dark)`
 - `Solarized (light)`
 
-To add a custom syntax theme, add a sublime-syntax file (e.g. `TOML.sublime-syntax`) into the `syntaxes` directory. This file describes what to use in the code block language names(what comes after the `` ``` ``).
+To add a custom syntax theme, add a sublime-syntax file (e.g. `TOML.sublime-syntax`) into the `syntaxes` directory. This file describes what to use in the markdown (what comes after the `` ``` ``).
 
 #### Page Info
 
@@ -159,25 +147,20 @@ In each markdown file a code block with the language specifier `pageinfo` is req
 ```pageinfo
 title = "Hello, World"
 description = "Greet the world"
-
-# optional
 style = "style.css"
 template = "template.html"
+
+# optional
 favicon = favicon.ico
 ```
 ````
 
-| Field         | Description                                           | Required |
-| ------------- | ----------------------------------------------------- | -------- |
-| `title`       | The title of the page                                 | Yes      |
-| `description` | The description of the page                           | Yes      |
-| `style`       | The CSS stylesheet to use, this overrides the default | No       |
-| `template`    | The HTML template to use, this overrides the default  | No       |
-| `favicon`     | The favicon image to use for the page                 | No       |
-
-The favicon and stylesheet are embeded into the HTML document.
-The favicon is encoded in base64 and stored using a data url in the generated HTML, it is not copied to the destination directory.
-The paths for all the fields are relative to the `raven.toml` at the root of the project.
+The first two items here are self-explainatory. `style` is the stylesheet to be embeded into the HTML document.
+It's path is relative to the `raven.toml` at the root of the project, the same thing is true in regard to the `template` and `favicon` keys.
+`template` is the HTML template to embed the generated HTML into, each document can use whichever template that is available.
+`favicon` is optional: if it's omitted, or the file isn't found, then the generated HTML doesn't have a favicon.
+The favicon is encoded in base64 and stored using a data url in the generated HTML.
+The favicon is not copied to the configured destination directory.
 
 ### Considerations
 
@@ -185,10 +168,11 @@ The paths for all the fields are relative to the `raven.toml` at the root of the
 
 - Markdown files (`.md` or `.markdown`) in the configured source directory will be parsed and generated into HTML files in the configured destination directory.
 - HTML files (`.html` or `.htm`) in the configured source directory will be copied to the configured destination deirectory (after, if enabled, processing).
-- CSS files (`.css`) in the configured source directory will be copied to the configured destination directory.
 - Everything else in the configured source directory gets ignored.
 
 ```pageinfo
 title = "Rustic Raven"
 description = "A static html generator"
+style = "style.css"
+template = "template.html"
 ```
