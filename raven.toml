@@ -1,7 +1,7 @@
 source = "src"
 dest = "docs"
 syntaxes = "syntaxes"
-syntax_theme = "base16-eighties.dark"
+syntax_theme = "gruvbox"
 custom_syntax_themes = "syntax-themes"
 
 [default]
