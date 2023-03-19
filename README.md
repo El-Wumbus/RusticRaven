@@ -180,5 +180,5 @@ The paths for all the fields are relative to the `raven.toml` at the root of the
 
 - Markdown files (`.md` or `.markdown`) in the configured source directory will be parsed and generated into HTML files in the configured destination directory.
 - HTML files (`.html` or `.htm`) in the configured source directory will be copied to the configured destination deirectory (after, if enabled, processing).
-- CSS file (`.css`) in the configured source directory will be copied to the configured destination directory.
+- CSS files (`.css`) in the configured source directory will be copied to the configured destination directory.
 - Everything else in the configured source directory gets ignored.
