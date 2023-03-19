@@ -1,11 +1,11 @@
 name: rustic-raven
-version: 0.1.0
+version: git
 summary: A static html generator
 description: |
   Rustic Raven is a static site generator written
   in rust. It's indended to be speedy and easy to
   use.
-base: core18
+base: core20
 architectures:
   - build-on: [amd64,arm64,i386]
 confinement: strict
