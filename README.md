@@ -13,7 +13,7 @@ You can pick the latest release archive from the [GitHub Releases](https://githu
 To download the latest [snap release](https://snapcraft.io/rustic-raven/) you can use the following commands:
 
 ```sh
-sudo snap install rustic-raven
+sudo snap install rustic-raven --edge
 ```
 In this case the executable will be named differently than with other installation options (`rustic-raven.raven`).
 
