@@ -16,6 +16,8 @@ const TEMPLATE_NAME_TITLE: &str = "[/rustic_title/]";
 const TEMPLATE_NAME_DESC: &str = "[/rustic_description/]";
 const TEMPLATE_NAME_FAVICON: &str = "[/rustic_favicon/]";
 const TEMPLATE_NAME_STYLESHEET: &str = "[/rustic_stylesheet/]";
+const TEMPLATE_NAME_SITENAME: &str = "[/rustic_name/]";
+const TEMPLATE_NAME_AUTHORS: &str = "[/rustic_authors/]";
 
 #[inline]
 async fn read_to_base64_string(path: PathBuf) -> Result<String>
@@ -445,7 +447,7 @@ impl Website
                         if generation.treat_source_as_template.unwrap_or(false) {
                             let stylesheet = self.get_stylesheet(config.default.stylesheet.clone()).await?;
                             let favicon = self.get_favicon(config.default.favicon.clone()).await?;
-                            apply_to_template(&mut contents, None, None, &favicon, &stylesheet);
+                            self.apply_to_template(&mut contents, None, None, &favicon, &stylesheet);
                         }
                         if let Some(process_config) = &generation.process {
                             if process_config.minify {
@@ -571,8 +573,68 @@ impl Website
             }
         })?;
 
-        apply_to_template(&mut template, Some(html), Some(page_info), &favicon, &stylesheet);
+        self.apply_to_template(&mut template, Some(html), Some(page_info), &favicon, &stylesheet);
         Ok(template)
+    }
+
+    fn apply_to_template(
+        &self,
+        template: &mut String,
+        html: Option<String>,
+        page_info: Option<PageInfo>,
+        favicon: &str,
+        stylesheet: &str,
+    )
+    {
+        if let Some(html) = html {
+            *template = template.replace(TEMPLATE_NAME_BODY, html.as_ref());
+        }
+        if let Some(page_info) = page_info {
+            use htmlescape::encode_minimal;
+            let (site_name, authors) = match &page_info.meta {
+                Some(meta) => (meta.site_name.as_str(), meta.authors.join(", ")),
+                None => {
+                    (
+                        self.config
+                            .default
+                            .meta
+                            .as_ref()
+                            .map_or("", |meta| meta.site_name.as_str()),
+                        self.config
+                            .default
+                            .meta
+                            .as_ref()
+                            .map_or_else(String::new, |meta| meta.authors.join(", ")),
+                    )
+                }
+            };
+
+            // HTML escape anything needed
+            let (site_name, authors) = (encode_minimal(site_name), encode_minimal(&authors));
+            let mut title = page_info.title;
+            if let Some(meta) = &self.config.meta {
+                if let Some(append_site_name_to_title) = &meta.append_site_name_to_title {
+                    match append_site_name_to_title {
+                        crate::MetaAppendSiteNameToTitle::Default(x) => {
+                            if *x {
+                                title.push_str(&format!(" — {site_name}"));
+                            }
+                        }
+                        crate::MetaAppendSiteNameToTitle::Custom(s) => title.push_str(&format!("{s}{site_name}")),
+                    }
+                }
+            }
+
+            *template = template
+                .replace(TEMPLATE_NAME_TITLE, &title)
+                .replace(TEMPLATE_NAME_DESC, &page_info.description)
+                .replace(TEMPLATE_NAME_SITENAME, &site_name)
+                .replace(TEMPLATE_NAME_AUTHORS, &authors);
+        }
+
+        *template = template
+            .replace(TEMPLATE_NAME_FAVICON, favicon)
+            .replace(TEMPLATE_NAME_STYLESHEET, stylesheet);
     }
 }
 
@@ -589,27 +651,6 @@ fn post_process_html(mut html: String) -> String
     html_b = minify_html::minify(&html_b, &cfg);
     html = String::from_utf8_lossy(&html_b).to_string();
     html
-}
-
-fn apply_to_template(
-    template: &mut String,
-    html: Option<String>,
-    page_info: Option<PageInfo>,
-    favicon: &str,
-    stylesheet: &str,
-)
-{
-    if let Some(html) = html {
-        *template = template.replace(TEMPLATE_NAME_BODY, html.as_ref());
-    }
-    if let Some(page_info) = page_info {
-        *template = template
-            .replace(TEMPLATE_NAME_TITLE, &page_info.title)
-            .replace(TEMPLATE_NAME_DESC, &page_info.description);
-    }
-    *template = template
-        .replace(TEMPLATE_NAME_FAVICON, favicon)
-        .replace(TEMPLATE_NAME_STYLESHEET, stylesheet);
 }
 
 #[cfg(test)]

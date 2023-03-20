@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
-
 pub mod build;
 pub mod config;
 pub mod defaults;
@@ -11,32 +9,6 @@ pub use error::*;
 
 pub const NAME: &str = "RusticRaven";
 pub const DESC: &str = "A static html generator";
-
-#[allow(dead_code)]
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct PageInfo
-{
-    /// The page title.
-    pub title: String,
-
-    /// The page's description.
-    pub description: String,
-
-    /// The CSS stylesheet to use.
-    pub style: Option<PathBuf>,
-
-    /// The path to the HTML template to use.
-    pub template: Option<PathBuf>,
-
-    /// Use a different favicon for this page. If omitted the defualt one will
-    /// be used.
-    pub favicon: Option<PathBuf>,
-}
-
-impl PageInfo
-{
-    pub const CODE_BLOCK_IDENTIFIER: &str = "pageinfo";
-}
 
 /// Initialize a directiory with the defualt doodads
 ///
