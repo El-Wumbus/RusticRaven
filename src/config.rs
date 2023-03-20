@@ -44,6 +44,16 @@ strike! {
 
             /// The default HTML template for webpages.
             pub template: PathBuf,
+
+            /// The default self-describing data for webpages
+            pub meta: Option<pub struct DefaultMeta
+            {
+                /// The name of the website
+                pub site_name: String,
+
+                /// The author(s) of the web page
+                pub authors: Vec<String>,
+            }>,
         },
 
         pub generation: Option<pub struct Generation {
@@ -55,7 +65,20 @@ strike! {
             /// Treat html found in the source directory as a template
             pub treat_source_as_template: Option<bool>,
         }>,
+
+        pub meta: Option<pub struct Meta
+        {
+            pub append_site_name_to_title: Option<MetaAppendSiteNameToTitle>
+        }>
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum MetaAppendSiteNameToTitle
+{
+    Default(bool),
+    Custom(String),
 }
 
 impl Default for Config
@@ -63,6 +86,7 @@ impl Default for Config
     fn default() -> Self
     {
         Self {
+            meta:                 None,
             dest:                 PathBuf::from(Self::DEFAULT_DEST_DIR),
             source:               PathBuf::from(Self::DEFAULT_SRC_DIR),
             syntaxes:             PathBuf::from(Self::DEFAULT_SYNTAXES_DIR),
@@ -70,9 +94,10 @@ impl Default for Config
             custom_syntax_themes: PathBuf::from(Self::DEFAULT_CUSTOM_SYNTAX_THEMES_DIR),
             generation:           None,
             default:              Defaults {
+                meta:       None,
                 favicon:    PathBuf::from(Self::DEFAULT_FAVICON_FILE),
-                stylesheet: PathBuf::from(Self::DEFUALT_STYLE_FILE),
                 template:   PathBuf::from(Self::DEFAULT_TEMPLATE_FILE),
+                stylesheet: PathBuf::from(Self::DEFUALT_STYLE_FILE),
             },
         }
     }
@@ -117,4 +142,35 @@ impl Config
 
         Ok(parsed)
     }
+}
+
+structstruck::strike! {
+#[strikethrough[derive(Debug, Deserialize, Clone, PartialEq)]]
+pub struct PageInfo
+{
+    /// The page title.
+    pub title: String,
+
+    /// The page's description.
+    pub description: String,
+
+    /// The CSS stylesheet to use.
+    pub style: Option<PathBuf>,
+
+    /// The path to the HTML template to use.
+    pub template: Option<PathBuf>,
+
+    /// Use a different favicon for this page. If omitted the defualt one will
+    /// be used.
+    pub favicon: Option<PathBuf>,
+
+    pub meta: Option<pub struct PageInfoMeta {
+        pub site_name: String,
+        pub authors: Vec<String>,
+    }>,
+}
+}
+impl PageInfo
+{
+    pub const CODE_BLOCK_IDENTIFIER: &str = "pageinfo";
 }
