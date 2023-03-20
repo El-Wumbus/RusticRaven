@@ -9,6 +9,7 @@ favicon = "favicon.ico"
 stylesheet = "style.css"
 template = "template.html"
 
+
 [generation]
-process = { minify = true }
+process = { minify = false }
 treat_source_as_template = true

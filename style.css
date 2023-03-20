@@ -37,7 +37,7 @@ pre pre code {
     font-family: "Fira Code SemiBold";
     font-size: small;
     padding: 0;
-    
+
 }
 
 code {
@@ -48,11 +48,11 @@ code {
     padding: 2px;
 }
 
-a code {
+a {
     text-decoration: underline;
     text-decoration-color: #83A598;
     text-shadow: #83A598;
-    color:#83A598;
+    color: #83A598;
 }
 
 h1,
@@ -83,3 +83,18 @@ table {
 li {
     padding-top: 3px;
 }
+
+table {
+    border-collapse: collapse;
+}
+
+
+table td {
+    font-size: 12px;
+    padding: 10px 0;
+    margin-right: 5px;
+    border-bottom: 1px solid #ddd;
+}
+th {
+    text-align: left;
+  }
