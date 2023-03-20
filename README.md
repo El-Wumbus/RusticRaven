@@ -106,8 +106,7 @@ Now, in the `foo/docs` directory is the `index.html` file. Preview it in a web b
 
 ### Configuration :page_facing_up:
 
-To make a new project with the defualt configuration run the `init` subcommand.
-The default configuration looks similar to below:
+A configuration may look similar to below:
 
 ```toml
 source = "src"
