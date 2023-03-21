@@ -320,7 +320,7 @@ impl Website
                                 syntax,
                                 &self.syntax_theme,
                             ) {
-                                Ok(x) => x,
+                                Ok(x) => format!("<div>{x}</div>"),
                                 Err(e) => return Err(Error::SyntaxHighlight(e.to_string())),
                             };
 
@@ -690,12 +690,12 @@ template = "template.html"
     fn test_syntax_highliting_markdown_parsing()
     {
         const EXPECTED_HTML: &str =
-            "<pre><code class=\"language-C\"><pre style=\"background-color:#2d2d2d;\">\n<span \
+            "<div><pre><code class=\"language-C\"><pre style=\"background-color:#2d2d2d;\">\n<span \
              style=\"color:#cc99cc;\">int </span><span style=\"color:#6699cc;\">main</span><span \
              style=\"color:#d3d0c8;\">()\n</span><span style=\"color:#d3d0c8;\">{\n</span><span \
              style=\"color:#d3d0c8;\">    </span><span style=\"color:#cc99cc;\">return </span><span \
              style=\"color:#f99157;\">0</span><span style=\"color:#d3d0c8;\">;\n</span><span \
-             style=\"color:#d3d0c8;\">}\n</span></pre>\n</code></pre>\n";
+             style=\"color:#d3d0c8;\">}\n</span></pre>\n</code></pre></div>\n";
 
         let config = Config::default();
         let theme = highlighting::ThemeSet::load_defaults()
