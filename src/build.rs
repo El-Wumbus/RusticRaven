@@ -320,7 +320,7 @@ impl Website
                                 syntax,
                                 &self.syntax_theme,
                             ) {
-                                Ok(x) => format!("<div>{x}</div>"),
+                                Ok(x) => format!("<div>{}</div>", x.trim()),
                                 Err(e) => return Err(Error::SyntaxHighlight(e.to_string())),
                             };
 
